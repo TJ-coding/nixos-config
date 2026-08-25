@@ -6,16 +6,16 @@
   };
 
   outputs = {self, nixpkgs, ... }: {
-    nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
+    nixosConfigurations.artifacts = nixpkgs.lib.nixosSystem {
 	system = "x86_64-linux";
 	modules = [
-	    ./configuration.nix
-	    ./hardware-configuration.nix
+	    ./hosts/artifacts/configuration.nix
+	    ./hosts/artifacts/hardware-configuration.nix
 	];
     };
     packages = builtins.mapAttrs (system: pkgs: {
       hello = pkgs.hello;
-
+	
       default = self.packages.${system}.hello;
     }) nixpkgs.legacyPackages;
   };

@@ -1,0 +1,23 @@
+# Nix build outputs
+result
+result-*
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.*
+*.key
+*.pem
+*.secret
+secrets/
+nix

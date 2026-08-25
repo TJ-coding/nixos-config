@@ -7,7 +7,7 @@
 {
   imports =
     [ # Include the results of the hardware scan.
-      ./hardware-configuration.nix
+      ../../templates/artifacts.nix
     ];
 
   # Bootloader.
@@ -16,6 +16,7 @@
   boot.loader.grub.useOSProber = true;
 
   networking.hostName = "nixos"; # Define your hostname.
+  networking.firewall.allowedTCPPorts = [ 22 ];
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
   # Configure network proxy if necessary
@@ -56,6 +57,8 @@
     variant = "";
   };
 
+  services.netbird.enable = true;
+
   # Enable CUPS to print documents.
   services.printing.enable = true;
 
@@ -79,7 +82,7 @@
   # services.xserver.libinput.enable = true;
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
-  users.users."tjcoding" = {
+  users.users."tj-coding" = {
     isNormalUser = true;
     description = "tj-coding";
     extraGroups = [ "networkmanager" "wheel" ];
@@ -97,8 +100,8 @@
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
-  #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
-  #  wget
+      # vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
+   #  wget
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
@@ -112,7 +115,7 @@
   # List services that you want to enable:
 
   # Enable the OpenSSH daemon.
-  # services.openssh.enable = true;
+  services.openssh.enable = true;
 
   # Open ports in the firewall.
   # networking.firewall.allowedTCPPorts = [ ... ];
@@ -127,5 +130,4 @@
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
   system.stateVersion = "26.05"; # Did you read the comment?
-
 }
