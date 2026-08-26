@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "kohaku-hub": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1778271251,
+        "narHash": "sha256-KW/EHLaumnlL+LtnY7wZIO2zwJLCmNwSm9cWOvjCcQ0=",
+        "owner": "KohakuBlueleaf",
+        "repo": "KohakuHub",
+        "rev": "2facb54b71b987ff11bae1083fa395703676632c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "KohakuBlueleaf",
+        "repo": "KohakuHub",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1787360063,
@@ -18,6 +34,7 @@
     },
     "root": {
       "inputs": {
+        "kohaku-hub": "kohaku-hub",
         "nixpkgs": "nixpkgs"
       }
     }

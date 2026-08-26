@@ -3,9 +3,13 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    kohaku-hub = {
+      url = "github:KohakuBlueleaf/KohakuHub";
+      flake = false;
+    };
   };
 
-  outputs = {self, nixpkgs, ... }: {
+  outputs = {self, nixpkgs, kohaku-hub }: {
     nixosConfigurations.artifacts = nixpkgs.lib.nixosSystem {
 	system = "x86_64-linux";
 	modules = [
