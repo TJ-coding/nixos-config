@@ -17,6 +17,10 @@
     { device = "/dev/disk/by-uuid/b2b1b075-6831-48d7-8636-a72eb3d3d521";
       fsType = "ext4";
     };
+  fileSystems."/mnt/s3data" = {
+    device = "/dev/disk/by-uuid/afe1adf0-7ace-4801-9fb8-6c8781258134";
+    fsType = "ext4";
+  };
 
   swapDevices = [ ];
 

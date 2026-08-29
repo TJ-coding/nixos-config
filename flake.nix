@@ -7,14 +7,32 @@
       url = "github:KohakuBlueleaf/KohakuHub";
       flake = false;
     };
+    rustfs = {
+      url = "github:rustfs/rustfs-flake";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    secrets = {
+      url = "git+ssh://git@github.com/TJ-coding/nixos-secrets.git";
+      flake = false;
+    };
+      sops-nix = {
+    url = "github:Mic92/sops-nix/master";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
   };
 
-  outputs = {self, nixpkgs, kohaku-hub }: {
+  outputs = {self, nixpkgs, kohaku-hub, rustfs, secrets, sops-nix }: {
     nixosConfigurations.artifacts = nixpkgs.lib.nixosSystem {
 	system = "x86_64-linux";
+  specialArgs = {
+    kohaku-hub = kohaku-hub;
+    rustfs = rustfs;
+    secrets = secrets;
+  };
 	modules = [
 	    ./hosts/artifacts/configuration.nix
 	    ./hosts/artifacts/hardware-configuration.nix
+      sops-nix.nixosModules.sops
 	];
     };
     packages = builtins.mapAttrs (system: pkgs: {
