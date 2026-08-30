@@ -1,0 +1,24 @@
+[0;1;32m●[0m kohaku-hub.service
+     Loaded: loaded (]8;;file://nixos/etc/systemd/system/kohaku-hub.service\/etc/systemd/system/kohaku-hub.service]8;;\; [0;1;32menabled[0m; preset: ignored)
+     Active: [0;1;32mactive (running)[0m since Sun 2026-08-30 05:10:41 JST; 40s ago
+ Invocation: 4c0012527faf4b588279a6d81cd4058a
+   Main PID: 33342 (docker)
+         IP: 0B in, 0B out
+         IO: 0B read, 24K written
+      Tasks: 17[0;38:5:245m (limit: 9489)[0m
+     Memory: 20.7M (peak: 33.5M)
+        CPU: 215ms
+     CGroup: /system.slice/kohaku-hub.service
+             ├─[0;38:5:245m33342 /nix/store/6swknznj3gsja2xi38499949w592xyib-docker-29.7.2/libexec/docker/docker compose --env-file /run/secrets/kohaku-hub-env -f /etc/kohaku-hub-compose.yml up --build[0m
+             └─[0;38:5:245m33366 /nix/store/jn75vbna6dywl5w96csz31bp0qn2j9lp-docker-compose-5.4.0/libexec/docker/cli-plugins/docker-compose compose --env-file /run/secrets/kohaku-hub-env -f /etc/kohaku-hub-compose.yml up --build[0m
+
+ 8月 30 05:11:16 nixos docker[33366]: hub-api   |   File "/usr/local/lib/python3.13/site-packages/botocore/client.py", line 606, in _api_call
+ 8月 30 05:11:16 nixos docker[33366]: hub-api   |     return self._make_api_call(operation_name, kwargs)
+ 8月 30 05:11:16 nixos docker[33366]: hub-api   |            ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+ 8月 30 05:11:16 nixos docker[33366]: hub-api   |   File "/usr/local/lib/python3.13/site-packages/botocore/context.py", line 123, in wrapper
+ 8月 30 05:11:16 nixos docker[33366]: hub-api   |     return func(*args, **kwargs)
+ 8月 30 05:11:16 nixos docker[33366]: hub-api   |   File "/usr/local/lib/python3.13/site-packages/botocore/client.py", line 1094, in _make_api_call
+ 8月 30 05:11:16 nixos docker[33366]: hub-api   |     raise error_class(parsed_response, operation_name)
+ 8月 30 05:11:16 nixos docker[33366]: hub-api   | botocore.exceptions.ClientError: An error occurred (401) when calling the HeadBucket operation: Unauthorized
+ 8月 30 05:11:16 nixos docker[33366]: hub-api   |
+ 8月 30 05:11:16 nixos docker[33366]: hub-api   | [ERROR][UVICORN.ERROR][W:13][20:11:16] Application startup failed. Exiting.

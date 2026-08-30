@@ -14,5 +14,7 @@ in
       gh
       bootstrap-auth
       openssl
+      tree
+      iputils
   ];
 }
