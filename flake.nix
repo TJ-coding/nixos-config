@@ -22,6 +22,12 @@
   };
 
   outputs = {self, nixpkgs, kohaku-hub, rustfs, secrets, sops-nix }: {
+
+  devShells.default = nixpkgs.mkShell {
+    packages = with nixpkgs; [
+      mdbook
+    ];
+  };
     nixosConfigurations.artifacts = nixpkgs.lib.nixosSystem {
 	system = "x86_64-linux";
   specialArgs = {

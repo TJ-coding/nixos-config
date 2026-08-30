@@ -1,0 +1,6 @@
+[book]
+title = "My Nix Config"
+authors = ["TJ-coding"]
+language = "en"
+[output.html.playground]
+copyable = true
