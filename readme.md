@@ -2,86 +2,30 @@
 
 ### Directory Structure
 ```
-nixos-config/
-├── hosts/      Contains configuration of physical machines
-├── templates/  Groups of modules and functions reused by different machines
-├── modules/    Groups of moudles for use by different templates
-├── functions/  Smallest component, who serves a specific function
-├── apps/       Custom Nix Packages and Docker Files who serves a function
+📂 nixos-config/
+├─ 📂 hosts/      Contains configuration of physical machines
+├─ 📂 templates/  Groups of modules and functions reused by different machines
+├─ 📂 modules/    Groups of moudles for use by different templates
+├─ 📂 functions/  Smallest component, who serves a specific function
+├─ 📂 apps/       Custom Nix Packages and Docker Files who serves a function
 ```
+### Choosing Folder
 
-## Bag of Materials
+| Folder | Put it here when... | Typical contents |
+|---|---|---|
+| `hosts/` | It is specific to a physical machine | Hardware configuration, host-specific settings |
+| `templates/` | It combines reusable configuration for a class of machines | Desktop template, server template, development template |
+| `modules/` | It provides one reusable NixOS feature | SSH, Docker, graphics, users |
+| `functions/` | It is a small reusable building block | Nix functions, helpers, generators |
+| `apps/` | It represents a custom application or package | Custom Nix packages, Docker Compose applications |
 
-### Flakes
-|Flakes|Hosts|Purpose|
-|--|--|--|
-|artifacts|[artifacts](hosts/artifacts/configuration.nix)|
-
-### Hosts
-
-### Templates
-
-### Modules
-
-### Functions
-
-### Apps
-
-
-
-nixos-config/
-├── flake.nix
-├── flake.lock
-│
-├── hosts/
-│   ├── desktop/
-│   │   ├── configuration.nix
-│   │   └── hardware-configuration.nix
-│   │
-│   ├── laptop/
-│   │   ├── configuration.nix
-│   │   └── hardware-configuration.nix
-│   │
-│   └── server/
-│       ├── configuration.nix
-│       └── hardware-configuration.nix
-│
-├── modules/
-│   ├── common/
-│   │   ├── default.nix
-│   │   ├── packages.nix
-│   │   ├── shell.nix
-│   │   └── users.nix
-│   │
-│   ├── desktop/
-│   │   ├── default.nix
-│   │   ├── audio.nix
-│   │   ├── graphics.nix
-│   │   └── desktop-environment.nix
-│   │
-│   ├── development/
-│   │   ├── default.nix
-│   │   ├── git.nix
-│   │   ├── python.nix
-│   │   └── containers.nix
-│   │
-│   └── services/
-│       ├── ssh.nix
-│       ├── docker.nix
-│       └── ...
-│
-├── home/
-│   ├── common.nix
-│   ├── desktop.nix
-│   └── laptop.nix
-│
-└── README.md
-
-## Playbooks
-
-### Adding Docker Compose
-1. Adding Compose File and Repository
-/var/lib/kohakuhub
-2. Handling Volume Paths
-3. Handling Networking 
-4. Handling Secrets
+#### Dependency Direction
+```
+hosts
+  ↓
+templates
+  ↓
+modules
+  ↓
+functions
+```

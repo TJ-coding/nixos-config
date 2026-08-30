@@ -23,23 +23,28 @@
 
   outputs = {self, nixpkgs, kohaku-hub, rustfs, secrets, sops-nix }: {
 
-  devShells.default = nixpkgs.mkShell {
-    packages = with nixpkgs; [
-      mdbook
+  devShells.x86_64-linux.default =
+  let
+    pkgs = nixpkgs.legacyPackages.x86_64-linux;
+  in
+  pkgs.mkShell {
+    packages = [
+      pkgs.mdbook
+      pkgs.mdbook-mermaid
     ];
   };
     nixosConfigurations.artifacts = nixpkgs.lib.nixosSystem {
-	system = "x86_64-linux";
-  specialArgs = {
-    kohaku-hub = kohaku-hub;
-    rustfs = rustfs;
-    secrets = secrets;
-  };
-	modules = [
-	    ./hosts/artifacts/configuration.nix
-	    ./hosts/artifacts/hardware-configuration.nix
-      sops-nix.nixosModules.sops
-	];
+      system = "x86_64-linux";
+      specialArgs = {
+        kohaku-hub = kohaku-hub;
+        rustfs = rustfs;
+        secrets = secrets;
+      };
+      modules = [
+          ./hosts/artifacts/configuration.nix
+          ./hosts/artifacts/hardware-configuration.nix
+          sops-nix.nixosModules.sops
+      ];
     };
     packages = builtins.mapAttrs (system: pkgs: {
       hello = pkgs.hello;

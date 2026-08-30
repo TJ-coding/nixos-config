@@ -4,7 +4,7 @@
 {config, pkgs, kohaku-hub, secrets, sops-nix, ...}:
 {
   imports =
-    [ # Include the results of the hardware scan.
+    [ 
       ../modules/servers.nix
       ../functions/docker_compose.nix
       ../modules/terminal-rice/terminal-rice.nix
@@ -19,7 +19,7 @@
   };
     services.kohaku-hub = {
     enable = true;
-    s3-endpoint = "http://host.docker.internal:9000";
+    s3-endpoint = "http://192.168.10.125:9000";
     base-url = "http://nixos.netbird.cloud:28080";
     secrets-path = "secrets/artifacts/kohaku-hub.env";
 };

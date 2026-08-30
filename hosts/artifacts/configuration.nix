@@ -8,6 +8,7 @@
   imports =
     [ # Include the results of the hardware scan.
       ../../templates/artifacts.nix
+      ./hardware-configuration.nix
     ];
 
   # Bootloader.
