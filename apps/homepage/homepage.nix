@@ -12,7 +12,7 @@ in
 
     port = lib.mkOption {
       type = lib.types.int;
-      default = 28088;
+      default = 8080;
       description = "Public TCP port Homepage listens on (container port 3000).";
     };
   };

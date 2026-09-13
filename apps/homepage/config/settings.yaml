@@ -1,6 +1,6 @@
 # Homepage settings — managed by Nix (hosts/artifacts via apps/homepage)
 title: "Artifacts Server"
-baseUrl: http://nixos.netbird.cloud:28088
+baseUrl: http://nixos.netbird.cloud:8080
 theme: dark
 color: slate
 statusStyle: dot

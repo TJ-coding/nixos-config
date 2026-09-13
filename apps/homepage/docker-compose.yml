@@ -6,7 +6,7 @@ services:
     container_name: homepage
     restart: unless-stopped
     ports:
-      - "28088:3000"
+      - "8080:3000"
     volumes:
       - /etc/homepage/config:/app/config:ro
     extra_hosts:
@@ -14,4 +14,4 @@ services:
     environment:
       # Required since Homepage v1.0 when accessed from a non-localhost URL.
       # Comma-separated (no spaces) list of allowed Host headers.
-      HOMEPAGE_ALLOWED_HOSTS: "nixos.netbird.cloud:28088,100.82.43.201:28088,localhost:28088,127.0.0.1:28088"
+      HOMEPAGE_ALLOWED_HOSTS: "nixos.netbird.cloud:8080,100.82.43.201:8080,localhost:8080,127.0.0.1:8080"

@@ -48,11 +48,11 @@
 
 - Infrastructure:
     - Homepage:
-        href: http://nixos.netbird.cloud:28088
+        href: http://nixos.netbird.cloud:8080
         description: This dashboard
         widget:
           type: ping
-          url: http://host.docker.internal:28088
+          url: http://host.docker.internal:8080
     - Valkey:
         icon: sh-redis
         description: Redis-compatible cache (docker-internal only)
