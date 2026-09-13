@@ -30,6 +30,14 @@ in
       after = [ "docker.service" ];
       requires = [ "docker.service" ];
 
+      # Any change to the compose file or dashboard configs must restart the
+      # stack (the unit text is otherwise unchanged between builds, so without
+      # this switch-to-configuration would never recreate the container).
+      restartTriggers = [
+        (builtins.hashString "sha256" (toString config.environment.etc."homepage-compose.yml".source))
+        (builtins.hashString "sha256" (toString config.environment.etc."homepage/config".source))
+      ];
+
       serviceConfig = {
         Type = "simple";
         Restart = "on-failure";
