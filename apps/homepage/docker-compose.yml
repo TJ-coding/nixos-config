@@ -8,7 +8,9 @@ services:
     ports:
       - "8080:3000"
     volumes:
-      - /etc/homepage/config:/app/config:ro
+      # Writable on purpose: Homepage v1 creates <config>/logs at runtime.
+      # Assets are synced here from the Nix store by ExecStartPre.
+      - /var/lib/homepage/config:/app/config
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
