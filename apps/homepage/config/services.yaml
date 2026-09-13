@@ -1,0 +1,63 @@
+# Services on this machine (managed by Nix — apps/homepage/config/services.yaml)
+# Click-through links use the public netbird hostname; status widgets ping via
+# host.docker.internal (resolved to the host through the docker bridge).
+
+- Kohaku Hub:
+    - Kohaku Hub UI:
+        icon: sh-nginx
+        href: http://nixos.netbird.cloud:28080
+        description: Dataset registry web UI
+        widget:
+          type: ping
+          url: http://host.docker.internal:28080
+    - Hub API:
+        href: http://nixos.netbird.cloud:48888
+        description: Kohaku Hub backend
+        widget:
+          type: ping
+          url: http://host.docker.internal:48888
+    - PostgreSQL:
+        icon: sh-postgresql
+        href: http://nixos.netbird.cloud:25432
+        description: Hub database (postgres:15)
+        widget:
+          type: ping
+          url: http://host.docker.internal:25432
+
+- Data & Storage:
+    - lakeFS:
+        icon: sh-archive
+        href: http://nixos.netbird.cloud:28000
+        description: Git-for-data — repos (acl26-csr, …)
+        widget:
+          type: ping
+          url: http://host.docker.internal:28000
+    - RustFS S3:
+        icon: sh-minio
+        href: http://nixos.netbird.cloud:9000
+        description: Object storage on /mnt/s3data
+        widget:
+          type: ping
+          url: http://host.docker.internal:9000
+    - RustFS Console:
+        href: http://nixos.netbird.cloud:9001
+        description: RustFS admin web console
+        widget:
+          type: ping
+          url: http://host.docker.internal:9001
+
+- Infrastructure:
+    - Homepage:
+        href: http://nixos.netbird.cloud:28088
+        description: This dashboard
+        widget:
+          type: ping
+          url: http://host.docker.internal:28088
+    - Valkey:
+        icon: sh-redis
+        description: Redis-compatible cache (docker-internal only)
+    - Netbird:
+        description: Mesh VPN — hostname nixos.netbird.cloud
+    - SSH:
+        href: ssh://nixos.netbird.cloud
+        description: ssh tj-coding@nixos.netbird.cloud

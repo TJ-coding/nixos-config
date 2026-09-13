@@ -1,0 +1,4 @@
+# Sidebar widgets (managed by Nix — apps/homepage/config/widgets.yaml)
+- clock:
+    timezone: Asia/Tokyo
+    format: "H:mm, dddd Do MMMM"

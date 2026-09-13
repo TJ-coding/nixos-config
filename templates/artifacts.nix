@@ -10,6 +10,7 @@
       ../modules/terminal-rice/terminal-rice.nix
       ../functions/rustfs.nix
       ../apps/kohaku-hub/kohaku-hub.nix
+      ../apps/homepage/homepage.nix
     ];
     # RustFS Configuration
     services.rustfs = {
@@ -22,5 +23,9 @@
     s3-endpoint = "http://192.168.10.125:9000";
     base-url = "http://nixos.netbird.cloud:28080";
     secrets-path = "secrets/artifacts/kohaku-hub.env";
+};
+    # Homepage dashboard (apps/homepage) — assets all in-repo, deployed via Nix.
+    services.homepage = {
+    enable = true;
 };
 }

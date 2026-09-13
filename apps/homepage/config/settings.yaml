@@ -1,0 +1,18 @@
+# Homepage settings — managed by Nix (hosts/artifacts via apps/homepage)
+title: "Artifacts Server"
+baseUrl: http://nixos.netbird.cloud:28088
+theme: dark
+color: slate
+statusStyle: dot
+language: en
+
+layout:
+  Kohaku Hub:
+    style: row
+    columns: 3
+  Data & Storage:
+    style: row
+    columns: 3
+  Infrastructure:
+    style: row
+    columns: 4

@@ -1,0 +1,17 @@
+name: homepage
+
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    restart: unless-stopped
+    ports:
+      - "28088:3000"
+    volumes:
+      - /etc/homepage/config:/app/config:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      # Required since Homepage v1.0 when accessed from a non-localhost URL.
+      # Comma-separated (no spaces) list of allowed Host headers.
+      HOMEPAGE_ALLOWED_HOSTS: "nixos.netbird.cloud:28088,100.82.43.201:28088,localhost:28088,127.0.0.1:28088"
