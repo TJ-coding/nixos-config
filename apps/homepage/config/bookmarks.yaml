@@ -1,15 +1,15 @@
 # Bookmarks (managed by Nix — apps/homepage/config/bookmarks.yaml)
+- Nix:
+    - Repo docs:
+        - abbr: ND
+          href: https://tj-coding.github.io/nixos-config/
+    - NixOS Manual:
+        - abbr: NM
+          href: https://nixos.org/manual/nixos/stable/
+    - nixos-config repo:
+        - abbr: NR
+          href: https://github.com/TJ-coding/nixos-config
 - Development:
     - GitHub:
         - abbr: GH
           href: https://github.com/TJ-coding
-    - NixOS config:
-        - abbr: NC
-          href: https://github.com/TJ-coding/nixos-config
-- Homelab:
-    - Homepage:
-        - abbr: HP
-          href: https://gethomepage.dev
-    - lakeFS docs:
-        - abbr: LF
-          href: https://docs.lakefs.io
