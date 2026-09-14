@@ -17,6 +17,9 @@
   boot.loader.grub.useOSProber = true;
 
   networking.hostName = "nixos"; # Define your hostname.
+
+  # Proxmox guest integration: clean shutdown + IP reporting from the hypervisor.
+  services.qemuGuest.enable = true;
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
   # Enable networking
