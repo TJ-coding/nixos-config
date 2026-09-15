@@ -40,9 +40,6 @@
     gcc
     gfortran
     openblas
-    tmux
-    htop
-    iotop
   ];
 
   # Give each job all cores by default.

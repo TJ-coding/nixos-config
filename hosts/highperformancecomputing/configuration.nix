@@ -9,7 +9,12 @@
     [ # Include the results of the hardware scan.
       ./hardware-configuration.nix
       ../../templates/highperformancecomputing.nix
+      ../../functions/ssh-uni.nix
     ];
+
+  # SSH access to the university filesystem. The private key is injected from
+  # sops at activation time; nothing is copied into ~/.ssh by hand.
+  services.university-ssh.enable = true;
 
   # Bootloader.
   boot.loader.grub.enable = true;

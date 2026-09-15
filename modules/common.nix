@@ -16,5 +16,8 @@ in
       openssl
       tree
       iputils
+      tmux
+      htop
+      iotop
   ];
 }

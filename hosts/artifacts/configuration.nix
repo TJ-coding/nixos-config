@@ -9,7 +9,12 @@
     [ # Include the results of the hardware scan.
       ../../templates/artifacts.nix
       ./hardware-configuration.nix
+      ../../functions/ssh-uni.nix
     ];
+
+  # SSH access to the university filesystem. Replaces the hand-copied
+  # ~/.ssh/id_rsa and hand-edited ssh_config this host used to carry.
+  services.university-ssh.enable = true;
 
   # Bootloader.
   boot.loader.grub.enable = true;
