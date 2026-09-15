@@ -12,22 +12,36 @@ Install a normal NixOS installation on the machine.
     ```
 2. Then clone the repository:
     ``` bash
-    git clone https://github.com/TJ-coding/nixos-config.git ~/nixos-config 
+    git clone https://github.com/TJ-coding/nixos-config.git ~/nixos-config
     cd ~/nixos-config
     ```
 
 ## 3. Enroll the machine
 
-* Run the repository's enrollment command:
-    ``` bash
-    nix run .#enroll
-    ```
+Run the repository's enrollment command **on the new machine**:
+
+``` bash
+nix run .#enroll
+```
+
+This generates `hosts/<hostname>/hardware-configuration.nix` and then runs
+`bootstrap-auth`, which sets up NetBird, the GitHub deploy key that makes the
+private `secrets` flake input fetchable, and the SOPS age key.
+
+The credentials step is the one that is easy to get half-right — a deploy key
+that exists but does not match the host's key looks fine and fails later with
+`Permission denied (publickey)`. `bootstrap-auth` verifies each step and prints a
+PASS/FAIL summary. See [Handling Secrets](./Handling_Secrets.md) for what it is
+doing and how to do it by hand.
+
+If the host will not use any secrets, it can be built without step 3's age key;
+it simply cannot decrypt anything.
 
 ## 4. Configure the host
 
-1. Open the configuration 
-    ```
-    nano ~/hosts/<host-name>/configuration.nix
+1. Open the configuration
+    ``` bash
+    nano ~/nixos-config/hosts/<host-name>/configuration.nix
     ```
 2. Add a template to the configuration file
     ``` nix
@@ -39,11 +53,12 @@ Install a normal NixOS installation on the machine.
     ```
 
 ## 5. Add the Configuration as a Flake
-    1. open flake file
-        ``` nix
-        nano flake.nix
-        ```
-    2. add a new flake
+
+1. Open the flake file
+    ``` bash
+    nano ~/nixos-config/flake.nix
+    ```
+2. Add a new `nixosConfigurations` entry
     ``` nix
     nixosConfigurations.<host-name> = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
@@ -59,17 +74,29 @@ Install a normal NixOS installation on the machine.
       ];
     };
     ```
-    3. replace `<host-name>` with the actual host name
+3. Replace `<host-name>` with the actual host name
+
+`specialArgs` only needs the inputs that the host's templates actually use.
+Passing `secrets` to a host that imports no secrets-using module is harmless but
+pointless — and, as [Handling Secrets](./Handling_Secrets.md) explains, it is
+also why a missing deploy key can stay hidden until the first secret is added.
+
+If the host consumes secrets, its encrypted files belong in
+`nixos-secrets/secrets/<host-name>/`, matching the flake attribute name.
 
 ## 6. Apply the configuration
 
-1. Check the Configuration
-    ``` nix
+1. Check the configuration
+    ``` bash
     nix flake check --show-trace
     ```
-2. Apply the Configuration
-    ``` nix
+2. Apply the configuration
+    ``` bash
     sudo nixos-rebuild switch \
-    --flake .#my-host \
+    --flake .#<host-name> \
     --show-trace
+    ```
+3. Confirm secrets landed, if the host uses them
+    ``` bash
+    sudo ls /run/secrets
     ```

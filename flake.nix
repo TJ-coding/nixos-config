@@ -61,8 +61,13 @@
     };
     packages = builtins.mapAttrs (system: pkgs: {
       hello = pkgs.hello;
-	
+
       default = self.packages.${system}.hello;
+    } // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+      # Machine bootstrap helpers. `nix run .#enroll` is the first thing to run
+      # on a fresh host; see docs/src/Playbooks/Handling_Secrets.md.
+      bootstrap-auth = pkgs.callPackage ./apps/bootstrap-auth.nix { };
+      enroll = pkgs.callPackage ./apps/bootstrap-enroll.nix { };
     }) nixpkgs.legacyPackages;
   };
 }

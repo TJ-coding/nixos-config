@@ -188,6 +188,8 @@ This is useful when the containerized app needs to talk to a process running on 
 
 ## 5. Handle secrets with SOPS and dotenv files
 
+The credentials a host needs before any of this can decrypt anything (GitHub deploy key, SOPS age key) are covered in [Handling Secrets](./Handling_Secrets.md).
+
 ```nix
 nixosConfigurations.artifacts = nixpkgs.lib.nixosSystem {
     system = "x86_64-linux";
