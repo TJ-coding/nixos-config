@@ -1,4 +1,8 @@
 ## Maintinance Guidelines
+Documentation: [https://tj-coding.github.io/nixos-config/](https://tj-coding.github.io/nixos-config/)
+
+New here? Read [Bag of Materials](docs/src/Bag_of_Materials.md) for what exists, and the
+[playbooks](docs/src/playbooks.md) for how to change it.
 
 ### Directory Structure
 ```

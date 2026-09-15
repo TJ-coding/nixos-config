@@ -1,6 +1,6 @@
 # Nix Config Architecture
 
-This repository is organized as a small NixOS flake that models a single machine (`artifacts`) with a declarative host configuration, reusable templates, and a few service-specific modules. The overall pattern is: define a machine in one place, import reusable modules, and keep sensitive configuration in a SOPS-managed secrets repository.
+This repository is organized as a small NixOS flake that models two machines (`artifacts` and `highperformancecomputing`) with declarative host configurations, reusable templates, and a few service-specific modules. The overall pattern is: define a machine in one place, import reusable modules, and keep sensitive configuration in a SOPS-managed secrets repository.
 
 ## 1. The flake is the entrypoint
 
@@ -12,11 +12,11 @@ The root file [flake.nix](../../flake.nix) is the top-level configuration for th
   - `rustfs`
   - `secrets`
   - `sops-nix`
-- defines a NixOS system via `nixosConfigurations.artifacts`
+- defines a NixOS system per machine via `nixosConfigurations.artifacts` and `nixosConfigurations.highperformancecomputing`
 - passes special arguments such as `kohaku-hub`, `rustfs`, and `secrets` into the modules
 - enables the SOPS module with `sops-nix.nixosModules.sops`
 
-The current deployment target is the `artifacts` host:
+Each machine is its own `nixosConfigurations` entry; this is the `artifacts` one:
 
 ```nix
 nixosConfigurations.artifacts = nixpkgs.lib.nixosSystem {
@@ -38,7 +38,7 @@ That means the machine's actual state is assembled by Nix at evaluation time rat
 
 ## 2. Host configuration is deliberately separate from reusable logic
 
-The actual machine config lives in [hosts/artifacts/configuration.nix](../../hosts/artifacts/configuration.nix). It is intentionally lean and mostly focused on machine-specific concerns:
+The actual machine configs live in [hosts/artifacts/configuration.nix](../../hosts/artifacts/configuration.nix) and [hosts/highperformancecomputing/configuration.nix](../../hosts/highperformancecomputing/configuration.nix). They are intentionally lean and mostly focused on machine-specific concerns:
 
 - hostname
 - bootloader
@@ -133,6 +133,8 @@ The important detail is that the Docker stack is not a separate hand-managed set
 
 This repository treats secrets as declarative infrastructure, not as ad hoc generated files.
 
+The credentials a host needs in order to read those secrets — a GitHub deploy key for the private `secrets` flake input, and the SOPS age key — are operational concerns rather than Nix code. [Handling Secrets](Playbooks/Handling_Secrets.md) covers them, and `nix run .#enroll` sets them up.
+
 The critical pieces are:
 
 - [functions/sops.nix](../../functions/sops.nix)
@@ -185,7 +187,9 @@ When adding a new service, the usual pattern is:
 
 ## 9. Current deployment model
 
-The current machine is configured around a single artifact host that runs:
+Two hosts share these modules and differ only in which template they import.
+
+`artifacts` — the storage host:
 
 - NetBird
 - SSH
@@ -193,7 +197,14 @@ The current machine is configured around a single artifact host that runs:
 - KohakuHub and its supporting storage/database services
 - RustFS-backed S3-compatible storage
 
-This is a practical “single machine + service modules” layout rather than a large monorepo of unrelated systems.
+`highperformancecomputing` — the compute host:
+
+- NetBird, SSH, VS Code remote server
+- a single-node Slurm cluster
+- the scientific toolchain (uv, Python, gcc/gfortran, OpenBLAS)
+- university (NAIST) SSH access, from a SOPS-managed key
+
+This is a practical “a few machines + service modules” layout rather than a large monorepo of unrelated systems.
 
 ## Summary
 
