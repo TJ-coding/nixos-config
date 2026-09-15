@@ -84,10 +84,26 @@ empty.
 Run this on the freshly installed machine, from a checkout of this repository:
 
 ```sh
-nix run .#enroll
+cd ~/nixos-config
+nix run ".?dir=flakes/bootstrap#enroll"
 ```
 
-`enroll` writes `hosts/<hostname>/hardware-configuration.nix` and then runs
+It is the *bootstrap* flake and not `nix run .#enroll`, because of §2a: this is
+the one moment when the main flake cannot be evaluated yet. Nix fetches every
+input before calling `outputs`, so with no deploy key the main flake cannot even
+be evaluated to reach the helper that registers the deploy key:
+
+```text
+$ nix run .#enroll
+error: … while fetching the input 'git+ssh://git@github.com/TJ-coding/nixos-secrets.git'
+       error: Failed to fetch git repository 'ssh://git@github.com/TJ-coding/nixos-secrets.git'
+```
+
+`flakes/bootstrap/flake.nix` depends on nixpkgs alone, so it always evaluates and
+exports the same helpers. Once the credentials are in place the main flake
+becomes evaluable and `nix run .#enroll` works identically.
+
+`enroll` writes `hosts/<flake-host>/hardware-configuration.nix` and then runs
 `bootstrap-auth`, which does the following, idempotently:
 
 1. brings the machine onto NetBird (`netbird up`);

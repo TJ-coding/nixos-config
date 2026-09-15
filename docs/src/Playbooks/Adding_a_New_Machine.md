@@ -21,8 +21,29 @@ Install a normal NixOS installation on the machine.
 Run the repository's enrollment command **on the new machine**:
 
 ``` bash
-nix run .#enroll
+cd ~/nixos-config
+nix run ".?dir=flakes/bootstrap#enroll"
 ```
+
+Pass the host name explicitly unless the machine's hostname happens to match
+its flake attribute and host directory:
+
+``` bash
+nix run ".?dir=flakes/bootstrap#enroll" -- highperformancecomputing
+```
+
+Use the bootstrap flake, not `nix run .#enroll`, for this first run. The main
+flake takes the private `secrets` repository as an input, and Nix fetches every
+input before it evaluates anything — so before the deploy key exists, the main
+flake cannot be evaluated at all and `nix run .#enroll` fails with
+`Failed to fetch git repository 'ssh://git@github.com/TJ-coding/nixos-secrets.git'`.
+`flakes/bootstrap/flake.nix` depends on nixpkgs alone, so it always evaluates,
+and it exports the same helpers. Once the credentials are in place the two are
+equivalent.
+
+The `?dir=` form is what makes this work: `flakes/bootstrap` is a flake inside
+this repository, and pointing Nix at the repository root keeps the helper
+scripts in `apps/` reachable from it.
 
 This generates `hosts/<hostname>/hardware-configuration.nix` and then runs
 `bootstrap-auth`, which sets up NetBird, the GitHub deploy key that makes the
