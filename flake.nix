@@ -7,8 +7,17 @@
       url = "github:KohakuBlueleaf/KohakuHub";
       flake = false;
     };
+    # Pinned to the tip of rustfs-flake PR #64 (automation/update-sources-1.0.0-rc.5,
+    # commit c17daec) which packages rustfs 1.0.0-rc.5. The flake's main branch still
+    # ships 1.0.0-rc.1, which has erasure block-size bugs (zero-block_size divide-by-zero
+    # in codec streaming reads #4340, inline-threshold div_ceil rounding #6390, 1MiB GET
+    # mid-size reader #6861, large-file upload freeze). Once PR #64 is merged into main,
+    # revert this to: url = "github:rustfs/rustfs-flake";
+    #
+    # Pinning matters operationally: artifacts runs 1.0.0-rc.5, so leaving this
+    # unpinned makes the next rebuild of that host silently downgrade rustfs.
     rustfs = {
-      url = "github:rustfs/rustfs-flake";
+      url = "github:rustfs/rustfs-flake/c17daecdea77793da5de2cba081477178130f300";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     secrets = {

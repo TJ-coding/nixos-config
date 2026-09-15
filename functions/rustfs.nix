@@ -44,6 +44,10 @@
       address = ":9000";
       consoleEnable = true;
       consoleAddress = ":9001";
+
+      # Tolerate slow single ops on the shared HDD (read+write contention) without
+      # marking the disk faulty / blocking pool metadata writes.
+      extraEnvironmentVariables.RUSTFS_DRIVE_TIMEOUT_PROFILE = "lenient";
     };
 
     networking.firewall.allowedTCPPorts =
