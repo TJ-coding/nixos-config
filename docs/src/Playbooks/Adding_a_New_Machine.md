@@ -32,14 +32,21 @@ its flake attribute and host directory:
 nix run ".?dir=flakes/bootstrap#enroll" -- highperformancecomputing
 ```
 
-Use the bootstrap flake, not `nix run .#enroll`, for this first run. The main
-flake takes the private `secrets` repository as an input, and Nix fetches every
-input before it evaluates anything — so before the deploy key exists, the main
-flake cannot be evaluated at all and `nix run .#enroll` fails with
-`Failed to fetch git repository 'ssh://git@github.com/TJ-coding/nixos-secrets.git'`.
-`flakes/bootstrap/flake.nix` depends on nixpkgs alone, so it always evaluates,
-and it exports the same helpers. Once the credentials are in place the two are
-equivalent.
+Prefer the bootstrap flake for this first run: it depends on nixpkgs alone, so
+no missing private input can affect it, and it carries
+`nixosConfigurations.bootstrap` as well.
+
+To be precise about why: flake inputs are lazy, so `nix run .#enroll` does
+evaluate without a deploy key — evaluating `packages` never touches the private
+`secrets` input. What fails before the key exists is anything that evaluates a
+*host configuration*, which is what the rebuild after enrollment does:
+
+``` text
+$ nix eval .#nixosConfigurations.highperformancecomputing.config.system.build.toplevel.drvPath
+error: Failed to fetch git repository 'ssh://git@github.com/TJ-coding/nixos-secrets.git'
+```
+
+Once the credentials are in place the two entry points are equivalent.
 
 The `?dir=` form is what makes this work: `flakes/bootstrap` is a flake inside
 this repository, and pointing Nix at the repository root keeps the helper

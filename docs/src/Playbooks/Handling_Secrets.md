@@ -88,20 +88,22 @@ cd ~/nixos-config
 nix run ".?dir=flakes/bootstrap#enroll"
 ```
 
-It is the *bootstrap* flake and not `nix run .#enroll`, because of §2a: this is
-the one moment when the main flake cannot be evaluated yet. Nix fetches every
-input before calling `outputs`, so with no deploy key the main flake cannot even
-be evaluated to reach the helper that registers the deploy key:
+It is the *bootstrap* flake and not `nix run .#enroll` because it depends on
+nixpkgs alone, so no missing private input can affect it — and because it also
+carries `nixosConfigurations.bootstrap` for the bare-metal install.
+
+Strictly, `nix run .#enroll` from the main flake does work here too: flake
+inputs are lazy, so evaluating `packages` never touches `secrets`. What does
+fail before the deploy key exists is anything that evaluates a *host
+configuration* — see §2a:
 
 ```text
-$ nix run .#enroll
-error: … while fetching the input 'git+ssh://git@github.com/TJ-coding/nixos-secrets.git'
-       error: Failed to fetch git repository 'ssh://git@github.com/TJ-coding/nixos-secrets.git'
+$ nix eval .#nixosConfigurations.highperformancecomputing.config.system.build.toplevel.drvPath
+error: Failed to fetch git repository 'ssh://git@github.com/TJ-coding/nixos-secrets.git'
 ```
 
-`flakes/bootstrap/flake.nix` depends on nixpkgs alone, so it always evaluates and
-exports the same helpers. Once the credentials are in place the main flake
-becomes evaluable and `nix run .#enroll` works identically.
+Once the credentials are in place the main flake is fully usable and
+`nix run .#enroll` behaves identically.
 
 `enroll` writes `hosts/<flake-host>/hardware-configuration.nix` and then runs
 `bootstrap-auth`, which does the following, idempotently:

@@ -1,31 +1,48 @@
 {
   description = "Kohaku NixOS bootstrap";
 
-  # This flake exists to be usable *before* the main flake can be evaluated.
+  # This flake exists so the fresh-host entry point depends on nothing private.
   #
   # The main flake (../../flake.nix) takes `secrets` as an input:
   #
   #   secrets = { url = "git+ssh://git@github.com/TJ-coding/nixos-secrets.git"; }
   #
-  # Nix fetches every input before it can call `outputs`, so on a host that has
-  # no GitHub deploy key yet the whole main flake is unusable -- including the
-  # enrollment helper that is supposed to set that key up. `nix run .#enroll`
-  # therefore cannot be the first thing you run on a fresh host; it fails with
-  # `Failed to fetch git repository 'ssh://git@github.com/TJ-coding/nixos-secrets.git'`.
+  # Flake inputs are lazy, so that is not fatal in itself: on a host with no
+  # deploy key `nix build .#enroll` still succeeds, because evaluating
+  # `packages` never touches `secrets`. What does force it is evaluating a *host
+  # configuration*, which is what every rebuild is:
   #
-  # This flake depends on nixpkgs alone, so it always evaluates, and it exports
-  # the same helpers:
+  #   $ nix eval .#nixosConfigurations.highperformancecomputing.config.system.build.toplevel.drvPath
+  #   error: Failed to fetch git repository 'ssh://git@github.com/TJ-coding/nixos-secrets.git'
   #
-  #   nix run ./flakes/bootstrap#enroll          # credentials + hardware config
-  #   nix run ./flakes/bootstrap#bootstrap-auth  # credentials only
+  # (So does anything that deliberately fetches every input, such as
+  # `nix flake archive`.) The main flake therefore works right up to the moment
+  # you want to build a machine -- which is exactly when enrollment has to work.
   #
-  # Once the deploy key and the age key are in place the main flake becomes
-  # evaluable and `nix run .#enroll` works too.
+  # This flake depends on nixpkgs alone, so it evaluates and builds with no
+  # private access at all, and it exports the same helpers:
   #
-  # It also defines `nixosConfigurations.bootstrap`, the minimal system used to
-  # bring a bare metal install to the point where it can reach the repository:
+  #   nix run ".?dir=flakes/bootstrap#enroll"          # credentials + hardware config
+  #   nix run ".?dir=flakes/bootstrap#bootstrap-auth"  # credentials only
   #
-  #   sudo nixos-rebuild switch --flake ./flakes/bootstrap#bootstrap
+  # Use the `?dir=` form: `./flakes/bootstrap#enroll` fails, because the helper
+  # scripts it needs live in ../../apps/ and so fall outside that flake's root.
+  #
+  # Once the deploy key and the age key are in place the main flake is fully
+  # usable, and `nix run .#enroll` behaves identically.
+  #
+  # It also defines `nixosConfigurations.bootstrap`, a minimal system for the
+  # first install. It deliberately carries no filesystem or bootloader settings:
+  # those are properties of the machine and there is no safe default to guess.
+  # Generate them on the target and drop the file next to this one:
+  #
+  #   sudo nixos-generate-config --show-hardware-config > flakes/bootstrap/hardware-configuration.nix
+  #   sudo nixos-rebuild switch --flake ".?dir=flakes/bootstrap#bootstrap"
+  #
+  # Until that file exists, `nixos-rebuild` on this attribute stops at NixOS's
+  # assertions about `fileSystems` and `boot.loader`. The helpers above are not
+  # affected either way -- `hardware-configuration.nix` is imported only if it is
+  # there.
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
@@ -65,7 +82,9 @@
 
               system.stateVersion = "26.05";
             })
-          ];
+          ] ++ nixpkgs.lib.optional
+            (builtins.pathExists ./hardware-configuration.nix)
+            ./hardware-configuration.nix;
         };
 
       # `nix run ./flakes/bootstrap#enroll` resolves these: `nix run` falls back
