@@ -1,5 +1,5 @@
 [book]
-title = "My Nix Config"
+title = "TJ-Coding's Nix Config"
 authors = ["TJ-coding"]
 language = "en"
 [output.html.playground]
