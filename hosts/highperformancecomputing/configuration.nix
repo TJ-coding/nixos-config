@@ -20,6 +20,13 @@
 
   # Proxmox guest integration: clean shutdown + IP reporting from the hypervisor.
   services.qemuGuest.enable = true;
+
+  # Data disk (2T zvol on the hypervisor's ZFS hdd-datasets pool) holding the
+  # ACL26 corpus; keeps bulk data off the thin-provisioned root volume.
+  fileSystems."/mnt/hdd-data" = {
+    device = "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi2";
+    fsType = "ext4";
+  };
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
   # Enable networking
