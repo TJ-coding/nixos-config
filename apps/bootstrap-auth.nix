@@ -3,13 +3,28 @@
 # Give a freshly installed host the credentials it needs to take part in this
 # flake:
 #
-#   1. NetBird membership, so the host is reachable.
-#   2. GitHub SSH access to the *private* `secrets` flake input
+#   1. GitHub SSH access to the *private* `secrets` flake input
 #      (git+ssh://git@github.com/TJ-coding/nixos-secrets.git). Without this,
 #      `nixos-rebuild` cannot fetch the input, and the failure surfaces as a
 #      confusing `Permission denied (publickey)` during evaluation.
-#   3. The SOPS age key at /var/lib/sops-nix/infrastructure.age.key, which is
+#   2. The SOPS age key at /var/lib/sops-nix/infrastructure.age.key, which is
 #      what sops-nix uses to decrypt secrets into /run/secrets.
+#   3. NetBird membership, so the host is reachable -- registered with the
+#      shared setup key from the secrets repository, not an interactive SSO
+#      login.
+#
+# Step 3 runs *last* on purpose: it is the step that wants a secret this script
+# has to decrypt for itself, and it can only do that once step 2 has installed
+# the age key. Ordering it first (as this script used to) enrolled every new
+# host through SSO, which silently opts the machine into the account's "Peer
+# Session Expiration" (24h by default). The peer then fell off the mesh daily
+# until somebody ran `netbird up` on it by hand -- which is exactly what was
+# happening to artifacts and highperformancecomputing. Peers registered with a
+# setup key are exempt from session expiration.
+#
+# NetBird is therefore the only step that can be skipped safely: if no key can
+# be had, the host is simply not on the mesh yet, and the deployed NixOS
+# configuration registers it at the first rebuild (see functions/netbird.nix).
 #
 # Each step is verified rather than assumed, because a half-finished version of
 # this is exactly what makes secrets look configured when they are not: the
@@ -31,6 +46,7 @@ pkgs.writeShellApplication {
     hostname
     netbird
     openssh
+    sops
   ];
 
   text = ''
@@ -38,9 +54,18 @@ pkgs.writeShellApplication {
     SECRETS_URL="git@github.com:''${SECRETS_REPO}.git"
     AGE_KEY_FILE="/var/lib/sops-nix/infrastructure.age.key"
     SSH_KEY="''${HOME}/.ssh/id_ed25519"
+    SETUP_KEY_SECRET="secrets/shared/netbird.yaml"
+
+    # Escape hatch for the case where the secrets repository cannot be read
+    # yet: NETBIRD_SETUP_KEY_FILE=/path/to/key enroll <host>. The normal path
+    # decrypts the key with the age key installed in step 2, so nobody has to
+    # carry the key around by hand.
+    SETUP_KEY_FILE="''${NETBIRD_SETUP_KEY_FILE:-}"
 
     github_ok=0
     age_ok=0
+    secrets_dir=""
+    clone_dir=""
 
     step() { printf '\n==> %s\n' "$*"; }
     warn() { printf 'warning: %s\n' "$*" >&2; }
@@ -56,24 +81,42 @@ pkgs.writeShellApplication {
       timeout 60 git ls-remote "$SECRETS_URL" HEAD >/dev/null 2>&1
     }
 
-    # --------------------------------------------------------------- 1. NetBird
-    step "NetBird"
-    if netbird status 2>/dev/null | grep -q "Management: Connected"; then
-      echo "already connected"
-    else
-      sudo netbird up
-    fi
+    # A decrypted copy of the shared NetBird setup key, or failure. Printed on
+    # stdout so the caller can capture it; the file is the caller's to remove.
+    setup_key_from_secrets() {
+      [ -n "$secrets_dir" ] || return 1
 
+      local encrypted="$secrets_dir/$SETUP_KEY_SECRET"
+      [ -f "$encrypted" ] || return 1
+
+      # Resolve the absolute path first: sudo resets PATH, and `sops` here is a
+      # Nix wrapper that lives outside the system profile.
+      local sops_bin
+      sops_bin="$(command -v sops || true)"
+      [ -n "$sops_bin" ] || return 1
+
+      # The age key is root-only, so the decryption has to run as root. Capture
+      # the plaintext through a pipe rather than redirecting into the file:
+      # `sudo cmd >file` is the *user's* shell creating the file, which is both
+      # wrong and what shellcheck flags as SC2024.
+      local key_value
+      key_value="$(sudo SOPS_AGE_KEY_FILE="$AGE_KEY_FILE" "$sops_bin" --decrypt \
+        --extract '["setup_key"]' "$encrypted" 2>/dev/null || true)"
+      [ -n "$key_value" ] || return 1
+
+      local out
+      out="$(mktemp)"
+      chmod 600 "$out"
+      printf '%s\n' "$key_value" >"$out"
+      printf '%s\n' "$out"
+    }
+
+    # --------------------------------------------------------------- 1. GitHub
     # Turn a "Permission denied (publickey)" into something readable.
     if ! ssh-keygen -F github.com >/dev/null 2>&1; then
       ssh-keyscan -H github.com >>"''${HOME}/.ssh/known_hosts" 2>/dev/null || true
     fi
 
-    # --------------------------------------------------------------- 2. GitHub
-    # The private flake input is fetched over SSH, so git needs a key GitHub
-    # accepts. HTTPS credentials are irrelevant here: a git+ssh:// URL never
-    # consults a credential helper, which is why `gh auth setup-git` alone does
-    # not make the secrets input fetchable.
     step "Access to ''${SECRETS_REPO}"
     if can_read_secrets; then
       echo "OK: already reachable with the credentials on this host"
@@ -150,7 +193,7 @@ pkgs.writeShellApplication {
       fi
     fi
 
-    # ------------------------------------------------------------ 3. SOPS age key
+    # ------------------------------------------------------------ 2. SOPS age key
     step "SOPS age key"
     if sudo test -f "$AGE_KEY_FILE"; then
       recipient="$(sudo cat "$AGE_KEY_FILE" | age-keygen -y)"
@@ -218,11 +261,14 @@ pkgs.writeShellApplication {
 
     # Check the recipient against what .sops.yaml actually authorises. A key
     # that decrypts nothing is the failure mode this whole script exists for.
+    # The checkout is kept around for step 3, which decrypts the setup key out
+    # of it, and removed at the end.
     if [ "$age_ok" -eq 1 ] && [ "$github_ok" -eq 1 ]; then
       step "Checking the recipient against .sops.yaml"
       clone_dir="$(mktemp -d)"
       if git clone --quiet --depth 1 "$SECRETS_URL" "$clone_dir/secrets" 2>/dev/null; then
-        expected="$(grep -oE 'age1[0-9a-z]{58}' "$clone_dir/secrets/.sops.yaml" | sort -u || true)"
+        secrets_dir="$clone_dir/secrets"
+        expected="$(grep -oE 'age1[0-9a-z]{58}' "$secrets_dir/.sops.yaml" | sort -u || true)"
         if [ -z "$expected" ]; then
           warn "no age recipients found in ''${SECRETS_REPO}/.sops.yaml"
         elif printf '%s\n' "$expected" | grep -qx "$recipient"; then
@@ -234,7 +280,59 @@ pkgs.writeShellApplication {
         fi
       else
         warn "could not clone ''${SECRETS_REPO} to check recipients"
+        rm -rf "$clone_dir"
+        clone_dir=""
       fi
+    fi
+
+    # ------------------------------------------------------------- 3. NetBird
+    # Register with a setup key rather than an interactive SSO login: SSO peers
+    # inherit the account's "Peer Session Expiration" and drop off the mesh when
+    # it fires. The key is a shared secret, so the normal path decrypts it here
+    # with the age key from step 2 instead of making the operator paste it.
+    step "NetBird"
+    if netbird status 2>/dev/null | grep -q "Management: Connected"; then
+      echo "already connected"
+    else
+      setup_key=""
+      if [ -n "$SETUP_KEY_FILE" ]; then
+        [ -f "$SETUP_KEY_FILE" ] || die "no such setup key file: $SETUP_KEY_FILE"
+        setup_key="$SETUP_KEY_FILE"
+        echo "using the setup key from $SETUP_KEY_FILE"
+      else
+        setup_key="$(setup_key_from_secrets || true)"
+        if [ -n "$setup_key" ]; then
+          echo "using the setup key from $SETUP_KEY_SECRET"
+        fi
+      fi
+
+      if [ -n "$setup_key" ]; then
+        sudo netbird up --setup-key-file "$setup_key"
+        if [ "$setup_key" != "$SETUP_KEY_FILE" ]; then
+          rm -f "$setup_key"
+        fi
+      elif [ -t 0 ]; then
+        echo "no setup key available; falling back to interactive SSO login"
+        sudo netbird up
+      else
+        warn "no setup key available, and no terminal for an SSO login; skipping"
+        warn "the deployed configuration registers the peer on its first rebuild"
+      fi
+    fi
+
+    # The two registrations look identical until the session expires a day
+    # later, so say which one this host actually got.
+    status_out="$(netbird status 2>/dev/null || true)"
+    if printf '%s' "$status_out" | grep -q "Session expires"; then
+      warn "this peer is registered with a *user* login, so it carries a session"
+      warn "expiry and will need 'netbird up' by hand when that fires. Re-enrol it"
+      warn "with a setup key, or turn off Peer Session Expiration in the NetBird"
+      warn "dashboard. See docs/src/Nix_Config_Architecture.md."
+    elif printf '%s' "$status_out" | grep -q "Management: Connected"; then
+      echo "OK: connected with no session expiry"
+    fi
+
+    if [ -n "$clone_dir" ]; then
       rm -rf "$clone_dir"
     fi
 
@@ -249,6 +347,11 @@ pkgs.writeShellApplication {
       echo "  [ok]   SOPS age key at $AGE_KEY_FILE"
     else
       echo "  [warn] no SOPS age key: sops-nix will not decrypt anything on this host"
+    fi
+    if printf '%s' "$status_out" | grep -q "Management: Connected"; then
+      echo "  [ok]   NetBird peer connected"
+    else
+      echo "  [warn] NetBird peer not connected: this host is not on the mesh yet"
     fi
 
     echo

@@ -53,8 +53,11 @@ this repository, and pointing Nix at the repository root keeps the helper
 scripts in `apps/` reachable from it.
 
 This generates `hosts/<hostname>/hardware-configuration.nix` and then runs
-`bootstrap-auth`, which sets up NetBird, the GitHub deploy key that makes the
-private `secrets` flake input fetchable, and the SOPS age key.
+`bootstrap-auth`, which sets up the GitHub deploy key that makes the private
+`secrets` flake input fetchable, the SOPS age key, and NetBird membership —
+registering the peer with the shared setup key from `nixos-secrets` so it is not
+subject to the account's Peer Session Expiration. NetBird is enrolled last, once
+the age key exists to decrypt that setup key.
 
 The credentials step is the one that is easy to get half-right — a deploy key
 that exists but does not match the host's key looks fine and fails later with

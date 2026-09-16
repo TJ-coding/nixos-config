@@ -49,7 +49,7 @@ service-specific values for one class of machine.
 |---|---|
 | [apps/kohaku-hub](../../apps/kohaku-hub/kohaku-hub.nix) | KohakuHub plus its lakeFS / Postgres / Valkey Compose stack |
 | [apps/homepage](../../apps/homepage/homepage.nix) | Homepage dashboard |
-| [apps/bootstrap-auth.nix](../../apps/bootstrap-auth.nix) | NetBird, GitHub deploy key and SOPS age key |
+| [apps/bootstrap-auth.nix](../../apps/bootstrap-auth.nix) | GitHub deploy key, SOPS age key, and NetBird membership via the shared setup key |
 | [apps/bootstrap-enroll.nix](../../apps/bootstrap-enroll.nix) | `nix run .#enroll` — hardware config, then `bootstrap-auth` |
 
 ## Playbooks

@@ -109,21 +109,33 @@ Once the credentials are in place the main flake is fully usable and
 `enroll` writes `hosts/<flake-host>/hardware-configuration.nix` and then runs
 `bootstrap-auth`, which does the following, idempotently:
 
-1. brings the machine onto NetBird (`netbird up`);
-2. ensures an SSH key exists, offers to register it as a **read-only deploy key**
+1. ensures an SSH key exists, offers to register it as a **read-only deploy key**
    on `nixos-secrets`, and verifies the result with `git ls-remote`;
-3. installs the age key (paste an existing one, or generate a new one);
-4. checks the key's recipient against `nixos-secrets/.sops.yaml`;
+2. installs the age key (paste an existing one, or generate a new one);
+3. checks the key's recipient against `nixos-secrets/.sops.yaml`;
+4. brings the machine onto NetBird, registering it with the setup key from
+   `secrets/shared/netbird.yaml`, which it decrypts using the age key from step 2;
 5. prints a PASS/FAIL summary and exits non-zero if the repository is still
    unreachable.
+
+NetBird runs **last** because it is the one step that consumes a secret this
+script has to decrypt itself, and it can only do that once step 2 has installed
+the age key. Enrolling through an interactive SSO login instead — which is what
+this script used to do first — silently opts the peer into the account's **Peer
+Session Expiration** (24h by default), so the machine drops off the mesh daily
+until somebody runs `netbird up` on it by hand. Peers registered with a setup
+key are exempt from session expiration.
+
+That also makes NetBird the only skippable step: with no key to hand, the host
+is simply not on the mesh yet, and the deployed configuration registers it at
+the first rebuild (see [functions/netbird.nix](../../functions/netbird.nix)).
+`NETBIRD_SETUP_KEY_FILE=/path/to/key` overrides the decryption, for the case
+where the secrets repository cannot be read yet.
 
 ### Doing it by hand
 
 ```sh
-# 1. NetBird
-sudo netbird up
-
-# 2. GitHub: a key GitHub accepts for the private repository
+# 1. GitHub: a key GitHub accepts for the private repository
 ssh-keygen -t ed25519 -C "$(hostname)" -f ~/.ssh/id_ed25519      # if needed
 gh auth login                                                    # as the repo owner
 gh repo deploy-key add ~/.ssh/id_ed25519.pub \
@@ -133,13 +145,21 @@ gh repo deploy-key add ~/.ssh/id_ed25519.pub \
 ssh -T git@github.com                       # "Hi TJ-coding/nixos-secrets! ..."
 git ls-remote git@github.com:TJ-coding/nixos-secrets.git HEAD
 
-# 3. The age key (copy it from a host that already has it)
+# 2. The age key (copy it from a host that already has it)
 ssh <existing-host> sudo cat /var/lib/sops-nix/infrastructure.age.key
 
 sudo install -d -m 700 /var/lib/sops-nix
 sudo tee /var/lib/sops-nix/infrastructure.age.key >/dev/null   # paste, then Ctrl-D
 sudo chmod 600 /var/lib/sops-nix/infrastructure.age.key
 sudo chown root:root /var/lib/sops-nix/infrastructure.age.key
+
+# 3. NetBird, with the shared setup key, so the peer never expires
+sudo SOPS_AGE_KEY_FILE=/var/lib/sops-nix/infrastructure.age.key \
+  sops --decrypt --extract '["setup_key"]' \
+  ~/nixos-secrets/secrets/shared/netbird.yaml > /tmp/netbird-setup-key
+chmod 600 /tmp/netbird-setup-key
+sudo netbird up --setup-key-file /tmp/netbird-setup-key
+rm -f /tmp/netbird-setup-key
 
 # 4. Confirm the key can actually decrypt something
 cd ~/nixos-config
