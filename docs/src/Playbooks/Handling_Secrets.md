@@ -48,7 +48,26 @@ nixos-secrets/
 
 ## 2. Why a fresh machine cannot read secrets
 
-Two things have to be true, and neither is set up by installing NixOS:
+Three things have to be true, and none of them is set up by installing NixOS:
+
+**0. The `nix-command` and `flakes` experimental features must be enabled.**
+Nothing in this repository can be evaluated without them, since it is a flake
+input fetched through the unified `nix` CLI. On a fresh install they are off by
+default, and the first thing that fails is any `nix` subcommand:
+
+```text
+$ nix flake check
+warning: 'flake-check' is a deprecated alias for 'check'
+error: experimental Nix feature 'nix-command' is disabled; add '--extra-experimental-features nix-command' to enable it
+```
+
+This is a prerequisite for the two credentials below, not a third credential.
+See [Adding a New Machine](./Adding_a_New_Machine.md#2-enable-flakes-and-the-nix-command-cli),
+or the option reference at
+<https://nixos.org/manual/nixos/stable/#opt-nix.settings.experimental-features>.
+`modules/common.nix` declares the features for every host that imports it, and
+`bootstrap-auth` refuses to run without them, so a host that has been through
+`enroll` already has this covered.
 
 **a. The private flake input must be fetchable.** `flake.nix` pulls the secrets
 repository as an input:
@@ -317,6 +336,7 @@ gh repo deploy-key delete <id> --repo TJ-coding/nixos-secrets
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| `experimental Nix feature 'nix-command' is disabled` | flakes are not enabled on the host, or the running shell predates enabling them | declare `nix.settings.experimental-features = [ "nix-command" "flakes" ]`, or pass `--extra-experimental-features 'nix-command flakes'`; see [Adding a New Machine](./Adding_a_New_Machine.md#2-enable-flakes-and-the-nix-command-cli) |
 | `Permission denied (publickey)` from `nix flake archive` | host key is not a deploy key, or the deploy key was added from a *different* key | `gh repo deploy-key list --repo TJ-coding/nixos-secrets`, compare with `~/.ssh/id_ed25519.pub`, add the right one |
 | `Failed to fetch git repository ... nixos-secrets` | no SSH key registered, or no network | `ssh -T git@github.com` |
 | `/run/secrets` missing or empty | no age key, or the host defines no `sops.secrets` | install the age key; check `journalctl -u sops-nix` |

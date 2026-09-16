@@ -2,9 +2,89 @@
 
 ## 1. Install NixOS
 
-Install a normal NixOS installation on the machine.
+Install a normal NixOS installation on the machine, following the [NixOS
+manual](https://nixos.org/manual/nixos/stable/).
+(If the machine is not applying this repository's configuration yet, the
+bootstrap example in
+[flakes/bootstrap/flake.nix](../../flakes/bootstrap/flake.nix) is a minimal
+system for the first install.)
 
-## 2. Clone the repository
+At this point the installer environment has **neither flakes nor the unified
+`nix` CLI** enabled — they are experimental features, off until something turns
+them on. That is what the next step is for.
+
+## 2. Enable flakes and the `nix-command` CLI
+
+This repository is a flake, so every command in this playbook needs
+`nix-command` plus `flakes`. Enable them **before** enrolling, or `bootstrap-auth`
+will stop with a message pointing back here.
+
+### Option A — declarative (preferred, and what this repo does)
+
+This is the durable fix: the features are declared in the configuration, so they
+survive reboots and are not per-user state.
+
+- Fleet-wide, for hosts that import `modules/common.nix` (which every server
+template does), it is already declared:
+
+  ``` nix
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  ```
+
+- For a host that does not import `modules/common.nix` yet, add that line to
+  `hosts/<host-name>/configuration.nix`.
+
+See the manual for the option and the full list of features:
+<https://nixos.org/manual/nixos/stable/#opt-nix.settings.experimental-features>
+
+Because the features are not on yet, this first rebuild has to pass them on the
+command line:
+
+``` bash
+sudo nixos-rebuild switch \
+  --flake .#<host-name> \
+  --show-trace \
+  --extra-experimental-features 'nix-command flakes'
+```
+
+### Option B — imperative (temporary; no config of this repo needed)
+
+Use this when the machine is brand new, or when you deliberately do not want to
+touch its configuration — for instance during the very first bootstrap of
+[flakes/bootstrap/flake.nix](../../flakes/bootstrap/flake.nix), which is what
+`nixos-install` would use.
+
+- For the current shell only:
+
+  ``` bash
+  export NIX_CONFIG="$(printf 'experimental-features = nix-command flakes\n')\n$NIX_CONFIG"
+  ```
+
+- Or persist for the current user:
+
+  ``` bash
+  mkdir -p ~/.config/nix
+  printf 'experimental-features = nix-command flakes\n' >> ~/.config/nix/nix.conf
+  ```
+
+To confirm the features are active:
+
+``` bash
+nix config show experimental-features
+# fetch-tree flakes nix-command
+```
+
+Two things that trip people up here:
+
+- Nix reads its configuration **once, at start-up**. After enabling the features
+durably, a shell that was already running still lacks them — open a new shell,
+and remember that `nixos-rebuild` must be started *after* the rebuild that
+enabled the features in order to see them.
+- Any bare `nix` invocation made before the features are enabled needs
+  `--extra-experimental-features 'nix-command flakes'`; that is why the clone
+  step below spells it out.
+
+## 3. Clone the repository
 
 1. Install git
     ``` bash
@@ -16,7 +96,7 @@ Install a normal NixOS installation on the machine.
     cd ~/nixos-config
     ```
 
-## 3. Enroll the machine
+## 4. Enroll the machine
 
 Run the repository's enrollment command **on the new machine**:
 
@@ -68,7 +148,7 @@ doing and how to do it by hand.
 If the host will not use any secrets, it can be built without step 3's age key;
 it simply cannot decrypt anything.
 
-## 4. Configure the host
+## 5. Configure the host
 
 1. Open the configuration
     ``` bash
@@ -83,7 +163,7 @@ it simply cannot decrypt anything.
     ];
     ```
 
-## 5. Add the Configuration as a Flake
+## 6. Add the Configuration as a Flake
 
 1. Open the flake file
     ``` bash
@@ -115,12 +195,15 @@ also why a missing deploy key can stay hidden until the first secret is added.
 If the host consumes secrets, its encrypted files belong in
 `nixos-secrets/secrets/<host-name>/`, matching the flake attribute name.
 
-## 6. Apply the configuration
+## 7. Apply the configuration
 
 1. Check the configuration
     ``` bash
     nix flake check --show-trace
     ```
+    If `nix` reports `experimental Nix feature 'nix-command' is disabled`,
+    step 2 was skipped or the current shell predates it — see
+    [2. Enable flakes and the `nix-command` CLI](#2-enable-flakes-and-the-nix-command-cli).
 2. Apply the configuration
     ``` bash
     sudo nixos-rebuild switch \

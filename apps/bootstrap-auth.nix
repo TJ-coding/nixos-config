@@ -45,6 +45,7 @@ pkgs.writeShellApplication {
     gnused
     hostname
     netbird
+    nix
     openssh
     sops
   ];
@@ -64,12 +65,72 @@ pkgs.writeShellApplication {
 
     github_ok=0
     age_ok=0
+    # `setup_key` and `status_out` are initialised because `set -u`
+    # (writeShellApplication) makes an unset expansion a hard error on the paths
+    # that return early, and the summary below reads `status_out`.
+    setup_key=""
+    status_out=""
+    # Filled in by require_flakes; read by the success line and the summary.
+    features=""
     secrets_dir=""
     clone_dir=""
 
     step() { printf '\n==> %s\n' "$*"; }
     warn() { printf 'warning: %s\n' "$*" >&2; }
     die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+    # The enabled experimental features, as `nix config show` reports them
+    # (space-separated). Empty when `nix` cannot be run at all, which is the
+    # fresh-installer case: the installer ISO forbids nix.conf unless
+    # NIX_CONFIG is set.
+    enabled_features() {
+      nix config show experimental-features 2>/dev/null || true
+    }
+
+    # This repository is a flake, so nothing here works without these. Check up
+    # front rather than letting the operator discover it halfway through
+    # credential setup -- after `enroll` has already generated a hardware
+    # configuration.
+    require_flakes() {
+      # Declared first so the message can report what *is* enabled; `local` from
+      # `-`/`+`/`*` strips the enclosing scope's variable, which would silently
+      # shadow the global this function also assigns.
+      features="$(enabled_features)"
+      local features_missing=""
+      # Space-pad before matching: `nix config show` reports these
+      # space-separated, and padding makes "nix-command" not match
+      # "no-nix-command"-style values.
+      case " $features " in
+        *" nix-command "*) ;;
+        *) features_missing="nix-command" ;;
+      esac
+      case " $features " in
+        *" flakes "*) ;;
+        *) features_missing="''${features_missing:+''${features_missing} }flakes" ;;
+      esac
+      if [ -z "$features_missing" ]; then
+        return 0
+      fi
+
+      printf 'error: this repository is a flake, but %s %s not enabled\n' \
+        "$features_missing" "$(if [ "$features_missing" = "nix-command flakes" ]; then echo are; else echo is; fi)" >&2
+      printf '       enabled now: %s\n' "''${features:-<none reported by nix config show>}" >&2
+      printf '       needed:      nix-command flakes\n' >&2
+      printf '\n' >&2
+      printf 'Fix it declaratively in the host configuration (and then rebuild once with\n' >&2
+      printf 'the features passed on the command line, since Nix only reads its\n' >&2
+      printf 'configuration at start-up):\n' >&2
+      printf '\n' >&2
+      printf "    nix.settings.experimental-features = [ \"nix-command\" \"flakes\" ];\n" >&2
+      printf '\n' >&2
+      printf 'or temporarily, for a single shell:\n' >&2
+      printf "\n    export NIX_CONFIG='experimental-features = nix-command flakes'\n\n" >&2
+      printf 'Both are written up in docs/src/Playbooks/Adding_a_New_Machine.md\n' >&2
+      printf '(section 2, “Enable flakes and the nix-command CLI”), with the option\n' >&2
+      printf 'itself at\n' >&2
+      printf 'https://nixos.org/manual/nixos/stable/#opt-nix.settings.experimental-features\n' >&2
+      return 1
+    }
 
     need_tty() {
       if [ ! -t 0 ]; then
@@ -110,6 +171,16 @@ pkgs.writeShellApplication {
       printf '%s\n' "$key_value" >"$out"
       printf '%s\n' "$out"
     }
+
+    # ---------------------------------------------------- 0. flake prerequisites
+    # Cheap, and it gates everything after it: without the features below, the
+    # rebuild at the end cannot even evaluate this repository.
+    step "Flake features (nix-command, flakes)"
+    if require_flakes; then
+      echo "OK: $features"
+    else
+      exit 1
+    fi
 
     # --------------------------------------------------------------- 1. GitHub
     # Turn a "Permission denied (publickey)" into something readable.
@@ -338,6 +409,7 @@ pkgs.writeShellApplication {
 
     # ----------------------------------------------------------------- summary
     step "Summary"
+    echo "  [ok]   flake features enabled: $features"
     if [ "$github_ok" -eq 1 ]; then
       echo "  [ok]   GitHub SSH access to ''${SECRETS_REPO}"
     else
