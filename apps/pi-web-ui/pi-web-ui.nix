@@ -144,15 +144,22 @@ in
 
   config = lib.mkIf cfg.enable {
     # `pi` and `pi-web-ui` are wrappers with a `#!/usr/bin/env node` shebang, so
-    # node has to be on the user's PATH for the CLI to run at all; the prefix in
-    # profile.d provides the wrappers themselves.
+    # node has to be on the user's PATH for the CLI to run at all.
     environment.systemPackages = [ pkgs.nodejs ];
 
-    # `pi` and `pi-web-ui` land in the mutable prefix, so put it on the PATH of
-    # login shells rather than in environment.systemPackages.
-    environment.etc."profile.d/pi-web-ui.sh".text = ''
-      export PATH="${prefix}/bin''${PATH:+:}$PATH"
-    '';
+    # `pi` and `pi-web-ui` land in the mutable prefix, so put it on PATH here
+    # rather than in environment.systemPackages. sessionVariables entries are
+    # written to /etc/set-environment, where PATH is merged with (and prepended
+    # to) the profiles-derived PATH, so this does not shadow the rest.
+    #
+    # It has to be sessionVariables and not environment.etc."profile.d/…":
+    # NixOS's /etc/profile never sources /etc/profile.d, so a drop-in there is
+    # silently dead. That went unnoticed because the agent's own shell tool runs
+    # `bash -c` and keeps the service PATH below, while the UI's terminal spawns
+    # an interactive shell (`$SHELL -i`) whose /etc/bashrc re-sources
+    # /etc/profile — which replaced PATH wholesale and dropped the prefix, so
+    # `pi` was "command not found" in the terminal but fine everywhere else.
+    environment.sessionVariables.PATH = [ "${prefix}/bin" ];
 
     networking.firewall.interfaces = lib.mkMerge (
       map
