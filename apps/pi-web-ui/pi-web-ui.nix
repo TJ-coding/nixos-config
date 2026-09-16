@@ -134,11 +134,17 @@ in
       description = "Install pi-web-ui and the pi CLI into a mutable npm prefix";
       wants = [ "network-online.target" ];
       after = [ "network-online.target" ];
-      # node to run npm; the rest is what node-pty's native build needs.
+      # node to run npm; the rest is what node-pty's native build and npm's
+      # lifecycle scripts need. `bash` matters: npm spawns `sh` for every
+      # install script, and without a shell on PATH it dies with
+      # `npm error enoent spawn sh ENOENT`.
       path = with pkgs; [
         nodejs
+        bash
+        coreutils
         gcc
         gnumake
+        pkg-config
         python3
         openssl
         cacert
@@ -169,6 +175,10 @@ in
         PI_WEB_CWD = cfg.workspace;
         PI_WEB_HOST = cfg.host;
         PI_WEB_PORT = toString cfg.port;
+        # The agent runs bash commands with this PATH, and systemd's default
+        # (/usr/bin:/bin) is useless on NixOS. Use the system profile, which is
+        # exactly the package set this host declares, plus the npm prefix.
+        PATH = "${config.system.path}/bin:${prefix}/bin:/bin";
         # Declares the instance externally deployed, hiding self-update and
         # pi/plugin installs in the UI.
         PI_WEB_MANAGED = "1";
