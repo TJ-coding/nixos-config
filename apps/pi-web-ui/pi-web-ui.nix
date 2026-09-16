@@ -175,10 +175,32 @@ in
         PI_WEB_CWD = cfg.workspace;
         PI_WEB_HOST = cfg.host;
         PI_WEB_PORT = toString cfg.port;
-        # The agent runs bash commands with this PATH, and systemd's default
-        # (/usr/bin:/bin) is useless on NixOS. Use the system profile, which is
-        # exactly the package set this host declares, plus the npm prefix.
-        PATH = "${config.system.path}/bin:${prefix}/bin:/bin";
+        # The agent runs bash commands with this PATH, and NixOS's default for
+        # services is only coreutils/findutils/gnugrep/gnused (there is no
+        # /usr/bin here). Give it a working toolchain plus the system profile —
+        # which is exactly the package set this host declares — and the npm
+        # prefix so `pi` is runnable from its own terminal.
+        PATH = lib.mkForce (
+          lib.concatStringsSep ":" [
+            (lib.makeBinPath (with pkgs; [
+              bash
+              coreutils
+              findutils
+              gnugrep
+              gnused
+              git
+              curl
+              wget
+              ripgrep
+              tmux
+              nodejs
+              nix
+            ]))
+            "${config.system.path}/bin"
+            "${prefix}/bin"
+            "/bin"
+          ]
+        );
         # Declares the instance externally deployed, hiding self-update and
         # pi/plugin installs in the UI.
         PI_WEB_MANAGED = "1";
