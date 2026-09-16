@@ -118,6 +118,11 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # `pi` and `pi-web-ui` are wrappers with a `#!/usr/bin/env node` shebang, so
+    # node has to be on the user's PATH for the CLI to run at all; the prefix in
+    # profile.d provides the wrappers themselves.
+    environment.systemPackages = [ pkgs.nodejs ];
+
     # `pi` and `pi-web-ui` land in the mutable prefix, so put it on the PATH of
     # login shells rather than in environment.systemPackages.
     environment.etc."profile.d/pi-web-ui.sh".text = ''
