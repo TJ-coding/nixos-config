@@ -68,6 +68,19 @@
           sops-nix.nixosModules.sops
       ];
     };
+    nixosConfigurations.aiagents = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = {
+        kohaku-hub = kohaku-hub;
+        rustfs = rustfs;
+        secrets = secrets;
+      };
+      modules = [
+          ./hosts/aiagents/configuration.nix
+          ./hosts/aiagents/hardware-configuration.nix
+          sops-nix.nixosModules.sops
+      ];
+    };
     packages = builtins.mapAttrs (system: pkgs: {
       hello = pkgs.hello;
 
