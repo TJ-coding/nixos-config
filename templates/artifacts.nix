@@ -11,6 +11,7 @@
       ../functions/rustfs.nix
       ../apps/kohaku-hub/kohaku-hub.nix
       ../apps/homepage/homepage.nix
+      ../apps/openalex-sync/openalex-sync.nix
     ];
     # RustFS Configuration
     services.rustfs = {
@@ -26,6 +27,11 @@
 };
     # Homepage dashboard (apps/homepage) — assets all in-repo, deployed via Nix.
     services.homepage = {
+    enable = true;
+};
+    # OpenAlex snapshot publication (apps/openalex-sync). Reads the public OpenAlex
+    # snapshot straight into the hub as LFS objects; no local mirror copy is kept.
+    services.openalex-sync = {
     enable = true;
 };
 }
