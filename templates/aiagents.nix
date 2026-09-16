@@ -22,6 +22,12 @@
 
     firewallInterfaces = [ "ens18" "wt0" ];
 
+    # No PI_WEB_TOKEN: the token flow needs one `?token=…` visit per origin, which
+    # is friction when the same service is reached over both the LAN address and
+    # the NetBird name. Access is instead gated by the interface-scoped firewall
+    # above plus this Host allow-list.
+    token = false;
+
     # Strict Host-header allow-list, on top of the always-on same-authority
     # check. PI_WEB_TOKEN (generated on first start) is the actual credential.
     allowedHosts = [
