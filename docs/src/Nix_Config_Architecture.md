@@ -102,6 +102,39 @@ This is the place where the operator decides which workloads are enabled and wha
 
 [functions/netbird.nix](../../functions/netbird.nix) enables the VPN client and configures Docker DNS so container traffic does not get trapped behind NetBird's DNS listener.
 
+It also registers the host with a NetBird *setup key* rather than interactive
+SSO login. The distinction is not cosmetic: peers added through SSO inherit the
+account's **Peer Session Expiration** (24h by default), and when it fires the
+management service rejects the peer with
+
+```text
+PermissionDenied desc = peer login has expired, please log in once more
+```
+
+until somebody runs `netbird up` on the machine by hand — which is what
+`artifacts` and `highperformancecomputing` were doing roughly every 24 hours.
+Peers registered with a setup key are exempt from session expiration.
+
+A `netbird-login` oneshot waits for the daemon to report `NeedsLogin` and then
+logs in using the key from `sops.secrets."netbird-setup-key"`, so a host that
+has not enrolled yet — or that lost its registration — comes back on its own.
+
+One caveat is worth knowing before relying on that. A machine holds exactly one
+login method for the lifetime of its `config.json`, so a peer that was enrolled
+interactively cannot be converted just by adding the setup key:
+`netbird up --setup-key` fails with
+
+```text
+peer is already registered by a different User or a Setup Key
+```
+
+Converting such a peer means deleting it in the dashboard, removing
+`/var/lib/netbird/config.json`, and letting it re-register — and the peer's
+custom DNS name and group memberships have to be reapplied afterwards. For an
+existing SSO peer, switching its **Session Expiration** off in the dashboard is
+the cheaper fix. `bootstrap-auth` still enrols interactively, because the host
+has to be reachable before it can be rebuilt.
+
 ### RustFS
 
 [functions/rustfs.nix](../../functions/rustfs.nix) defines the S3-compatible storage service, including secret file handling and firewall/tcp exposure. It is part of the storage backend supporting the Dockerized app stack.

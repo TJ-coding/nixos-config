@@ -36,7 +36,7 @@ service-specific values for one class of machine.
 | Function | Provides |
 |---|---|
 | [functions/ssh.nix](../../functions/ssh.nix) | OpenSSH daemon, port 22 |
-| [functions/netbird.nix](../../functions/netbird.nix) | NetBird VPN, plus Docker DNS that bypasses its DNS listener |
+| [functions/netbird.nix](../../functions/netbird.nix) | NetBird VPN with setup-key login (exempt from session expiry), plus Docker DNS that bypasses its DNS listener |
 | [functions/sops.nix](../../functions/sops.nix) | SOPS age key location and `sops`/`age` tooling |
 | [functions/rustfs.nix](../../functions/rustfs.nix) | RustFS S3 storage, wired to its SOPS secrets |
 | [functions/docker_compose.nix](../../functions/docker_compose.nix) | Docker and Compose |

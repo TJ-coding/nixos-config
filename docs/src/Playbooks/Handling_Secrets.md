@@ -39,7 +39,8 @@ nixos-secrets/
 ├── .sops.yaml                       # who may decrypt what
 └── secrets/
     ├── shared/                      # read by more than one host
-    │   └── university-ssh-key.yaml  # -> functions/ssh-uni.nix
+    │   ├── university-ssh-key.yaml  # -> functions/ssh-uni.nix
+    │   └── netbird.yaml             # -> functions/netbird.nix
     └── artifacts/                   # nixosConfigurations.artifacts
         ├── kohaku-hub.env           # dotenv: whole file is one service env
         └── rustfs.yaml              # YAML: one key per sops.secrets entry
@@ -217,6 +218,29 @@ specialArgs = { inherit kohaku-hub rustfs secrets; };
 
 Always reference `config.sops.secrets.<name>.path`; never read the file at
 evaluation time, because at evaluation time the decrypted file does not exist.
+
+**A credential for one systemd unit** — the NetBird login oneshot does not put
+its key in an environment variable at all. The module passes
+`setupKeyFile` to systemd as `LoadCredential`, so the key is exposed to
+`netbird up` as `$CREDENTIALS_DIRECTORY/setup-key` and never appears in the
+unit's environment or in `/proc/*/environ` (`functions/netbird.nix`):
+
+```nix
+sops.secrets."netbird-setup-key" = {
+  sopsFile = "${secrets}/secrets/shared/netbird.yaml";
+  key = "setup_key";
+};
+
+services.netbird.clients.default.login = {
+  enable = true;
+  setupKeyFile = config.sops.secrets."netbird-setup-key".path;
+  systemdDependencies = [ "sops-install-secrets.service" ];
+};
+```
+
+The `systemdDependencies` entry is the load-bearing part: without it the login
+unit is free to start before sops-nix has written the file, and it reads a path
+that does not exist yet.
 
 ## 6. Verifying that it actually works
 
