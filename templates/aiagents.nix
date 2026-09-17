@@ -18,6 +18,10 @@
     enable = true;
     user = "tj-coding";
     workspace = "/home/tj-coding";
+    # The agent's starting directory (and the project the UI opens on). The
+    # ACL26 conversation was moved here from the Mac, transcripts included, so
+    # this is where its history lives.
+    cwd = "/home/tj-coding/Projects/acl26";
     port = 8787;
 
     firewallInterfaces = [ "ens18" "wt0" ];

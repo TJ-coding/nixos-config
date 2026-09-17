@@ -28,6 +28,9 @@ let
   # idempotent and re-runnable whenever a version is bumped.
   prefix = "${cfg.workspace}/.pi-web-ui";
 
+  # Where the agent starts working, which is also the project the UI opens on.
+  effectiveCwd = if cfg.cwd != null then cfg.cwd else cfg.workspace;
+
   installScript = pkgs.writeShellScript "pi-web-ui-install" ''
     set -eu
 
@@ -80,7 +83,20 @@ in
     workspace = lib.mkOption {
       type = lib.types.str;
       default = "/home/tj-coding";
-      description = "Directory the agent may read/write and where its terminal starts.";
+      description = "User home the service runs with: HOME, the npm prefix and the unit's working directory.";
+    };
+
+    cwd = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "/home/tj-coding/Projects/acl26";
+      description = ''
+        Directory the agent starts in (PI_WEB_CWD) and the project the UI opens
+        on. Defaults to `workspace`.
+
+        Separate from `workspace` on purpose: that one also carries HOME and the
+        mutable npm prefix, which must not move into a project directory.
+      '';
     };
 
     port = lib.mkOption {
@@ -202,7 +218,7 @@ in
 
       environment = {
         HOME = cfg.workspace;
-        PI_WEB_CWD = cfg.workspace;
+        PI_WEB_CWD = effectiveCwd;
         PI_WEB_HOST = cfg.host;
         PI_WEB_PORT = toString cfg.port;
         # The agent runs bash commands with this PATH, and NixOS's default for
@@ -245,7 +261,7 @@ in
         WorkingDirectory = cfg.workspace;
         # Carries PI_WEB_TOKEN; absent until the install unit has run once.
         EnvironmentFile = "-${prefix}/env";
-        ExecStart = "${prefix}/bin/pi-web-ui --no-browser --cwd ${cfg.workspace}";
+        ExecStart = "${prefix}/bin/pi-web-ui --no-browser --cwd ${effectiveCwd}";
         Restart = "on-failure";
         RestartSec = 5;
       };
