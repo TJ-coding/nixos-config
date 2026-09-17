@@ -11,6 +11,21 @@
       ../apps/pi-web-ui/pi-web-ui.nix
     ];
 
+  # The agent's shell reaches the rest of the fleet over NetBird. A missing
+  # host key aborts ssh with "Host key verification failed" — that is what
+  # stalled the ACL26 conversation — so declare the keys it needs, and accept
+  # new ones on first contact (the mesh, not ssh's prompt, is the trust
+  # boundary here; nothing in this UI can answer "yes" to a prompt).
+  programs.ssh = {
+    knownHosts.hpc = {
+      hostNames = [ "hpc.netbird.cloud" "100.82.96.15" ];
+      publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOD5q9AwyUCZb5QEqTRE9dEKHS+2GwbnmoleWAVwozut";
+    };
+    extraConfig = ''
+      StrictHostKeyChecking accept-new
+    '';
+  };
+
   # pi-web-ui drives a coding agent that can run bash and write files as
   # tj-coding, so the port is opened per interface — the LAN and the NetBird
   # tunnel only. A global rule would also expose this host's public IPv6.

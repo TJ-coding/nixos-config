@@ -98,6 +98,8 @@
       "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC0CvQ9iLfVBHXt4hcv5gv5r2G5q+RCU1DT3hAkK6kgLeO8Wwy5NYLg4yftyteWYzLa+/A6P8nzGNcN/kLrW8h+Btl8WqTXEmdHvCE55lHinNGl0uPska2BFC/c9dozvLPiiVmrgGN9EQaKqi6HZQF+w2ubF7GU5wkO3xwX4Qm7CLMwOx4hV8M9/XHBD4Xxg939ZZjrKXIniT1CMAljSC2OY/i2neQyWr35UedJLR/0xtxm+1MuoKNI+pg5xCelgheEkvAmXqaGvO6OGBfSxjj83UMO0efzfhoVXmqpwMqvuNGxjyuhVsWf+fO9xYXAI85vJNkKwm3OIkuiyBZnBbn1ufswfHO9+vdOyEchET+cM3AGTHmgaJWRhBZM6fcAvPeAGZDtXVeONihKJAdbEsk0hUspAlBHKEMCW2cxNhA95uyLpsYSOiA+t2BbfeVHop1Xt/i1xwnNeXkol78lAsYkjlyzKGQEHHiCSgPtKDaGH6mF0fJoQmKHMuRJC8LKoh1JDc72ZJ7GGuT/D5s0PfFY5r6zHWg/LFVkC7VmLLzLy7Wfx0017crIeNKNmWw+ZVaILWt5qNIt/C/VVAlj0c+nk56kaJTVkkjb8ys+YX0kNk3RRPpbApEj+dOjKXYKYRehWYz3ZKjs/oycCufVOXSnPgFAB+vF+/gQsqjUquQ6nw== root@rtx3090"
       # vm100-acl
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDW2C/rIWJnPRNU4pxEDXoaRrB0RWcJm3N+Xnv8nacCw vm100-acl"
+      # aiagents (VM 104) — the pi-web-ui host reads the ACL26 code and notes here
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICwe/wHQrgJn8HsrncYNJed5imGvp3eq1130rCBS1kcG aiagents"
     ];
   };
 
