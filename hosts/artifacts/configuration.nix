@@ -65,6 +65,12 @@
 
   services.netbird.enable = true;
 
+  # Proxmox guest integration: clean shutdown + IP reporting from the
+  # hypervisor. Also gives the hypervisor root-level exec access
+  # (qm guest exec), which is how an offline NetBird peer can be
+  # remediated from outside when the mesh is down.
+  services.qemuGuest.enable = true;
+
   # Enable CUPS to print documents.
   services.printing.enable = true;
 
