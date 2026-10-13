@@ -2,6 +2,24 @@
 
 let
   cfg = config.services.kohaku-hub;
+
+  # Upstream (KohakuBlueleaf/KohakuHub @ 2facb54) has two issues that make the
+  # dataset card slow to open on a large repo:
+  #   0001 - the HF `siblings` list is resolved with one DB query per file
+  #          (~34k lookups, 16 s for a 40k-file dataset)
+  #   0002 - that list is always materialised even when the caller does not want
+  #          it (6 MB / ~0.9 s TTFB for the same dataset)
+  # Carry both locally until they land upstream, then drop this override and let
+  # the flake input move forward.
+  backendSource = pkgs.applyPatches {
+    name = "kohaku-hub-src-patched";
+    src = kohaku-hub;
+    patches = [
+      ./patches/0001-batch-hf-siblings-db-lookup.patch
+      ./patches/0002-repo-info-include-siblings-flag.patch
+    ];
+  };
+
   frontend = pkgs.callPackage ./frontend.nix {
     inherit kohaku-hub;
   };
@@ -52,7 +70,7 @@ in
 
       environment = {
         # Build from the immutable upstream source directly so Docker always sees the real repo root.
-        KOHAKU_HUB_SOURCE = "${kohaku-hub}";
+        KOHAKU_HUB_SOURCE = "${backendSource}";
         KOHAKU_HUB_FRONTEND = "${frontend}";
         # Public configuration.
         KOHAKU_HUB_BASE_URL = cfg.base-url;
@@ -65,7 +83,7 @@ in
 
       serviceConfig = {
         Type = "simple";
-        WorkingDirectory = "${kohaku-hub}";
+        WorkingDirectory = "${backendSource}";
         EnvironmentFile = config.sops.secrets."kohaku-hub-env".path;
         Restart = "on-failure";
         RestartSec = "5s";

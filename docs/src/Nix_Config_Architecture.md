@@ -119,21 +119,42 @@ A `netbird-login` oneshot waits for the daemon to report `NeedsLogin` and then
 logs in using the key from `sops.secrets."netbird-setup-key"`, so a host that
 has not enrolled yet — or that lost its registration — comes back on its own.
 
-One caveat is worth knowing before relying on that. A machine holds exactly one
-login method for the lifetime of its `config.json`, so a peer that was enrolled
-interactively cannot be converted just by adding the setup key:
-`netbird up --setup-key` fails with
+That only covers a host which enrols *after* the key was added. A machine holds
+exactly one login method for the lifetime of its `config.json`, so the key does
+not convert a peer that already enrolled through SSO — a setup key can only
+enrol a *new* peer, and the client says so in as many words:
 
 ```text
-peer is already registered by a different User or a Setup Key
+this peer was originally enrolled via SSO and its session has expired.
+Setup keys can only enrol new peers — run `netbird up` (interactive SSO) to re-login.
 ```
 
-Converting such a peer means deleting it in the dashboard, removing
-`/var/lib/netbird/config.json`, and letting it re-register — and the peer's
-custom DNS name and group memberships have to be reapplied afterwards. For an
-existing SSO peer, switching its **Session Expiration** off in the dashboard is
-the cheaper fix. `bootstrap-auth` still enrols interactively, because the host
-has to be reachable before it can be rebuilt.
+Converting such a peer by hand means deleting it, removing
+`/var/lib/netbird/config.json` and letting it re-register — a new overlay IP, a
+DNS label that may be reallocated, and group memberships to reapply. So the peers
+that were already on the mesh are handled the other way round:
+[functions/netbird-session-expiration.nix](../../functions/netbird-session-expiration.nix)
+clears the expiry on *this host's own peer* through the NetBird Management REST
+API, at boot and hourly, authenticating with the personal access token in
+`sops.secrets."netbird-api-token"`.
+
+The flag is written per peer rather than per account on purpose: the account
+carries dozens of peers belonging to other machines, and disabling the policy
+account-wide to rescue three servers would quietly change all of them. It is also
+the only place that can fix this — when the deadline fires, management answers
+`peer login has expired, please log in once more` and the sole client-side remedy
+is an interactive SSO login, which is the daily `netbird up` this module exists
+to remove. `bootstrap-auth` still enrols interactively when it has no key,
+because a host has to be reachable before it can be rebuilt.
+
+There is a second, stickier flag worth knowing about. Management's own expiration
+sweeper marks a peer `login_expired`, and *that* flag is cleared only by an SSO
+login (`Peer.UpdateLastLogin`) — not by clearing the policy flag. Clearing the
+policy therefore prevents the next expiry, but it cannot revive a peer that
+management has already flagged: that one needs a single `netbird up`, after which
+it is permanent. The reconciler says so in as many words when it finds a daemon
+in `NeedsLogin`, which is the one state where it cannot identify its own peer (a
+peer without an overlay address has no `ip` to match against the API).
 
 ### RustFS
 

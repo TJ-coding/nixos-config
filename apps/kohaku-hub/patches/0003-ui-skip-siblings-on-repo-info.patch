@@ -1,0 +1,25 @@
+Stop the SPA from downloading the repo-info `siblings` list.
+
+`repoAPI.getInfo` is the SPA's only caller of the repo-info endpoint,
+and no UI code reads `repoInfo.siblings` (the file tree comes from
+`/tree/`). On a 40k-file dataset that list is a 6 MB response that the
+SPA waits on in `onMounted` before it loads the README, so the card
+feels slow for no benefit. Ask the backend for the metadata-only shape
+(see 0002) instead.
+
+Homepage/user pages that embed a README keep working — they fetch the
+tree and the README separately.
+
+--- a/src/kohaku-hub-ui/src/utils/api.js
++++ b/src/kohaku-hub-ui/src/utils/api.js
+@@ -181,7 +181,9 @@
+    * @returns {Promise} - Repository metadata
+    */
+   getInfo: (type, namespace, name) =>
+-    api.get(`/api/${type}s/${namespace}/${name}`),
++    api.get(`/api/${type}s/${namespace}/${name}`, {
++      params: { include_siblings: false },
++    }),
+ 
+   /**
+    * List repositories

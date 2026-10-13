@@ -47,7 +47,20 @@
 
       # Tolerate slow single ops on the shared HDD (read+write contention) without
       # marking the disk faulty / blocking pool metadata writes.
-      extraEnvironmentVariables.RUSTFS_DRIVE_TIMEOUT_PROFILE = "lenient";
+      extraEnvironmentVariables = {
+        RUSTFS_DRIVE_TIMEOUT_PROFILE = "lenient";
+
+        # The dataset viewer (safetensors / parquet preview) issues cross-origin
+        # Range reads straight against the presigned S3 URL, i.e. directly at
+        # this rustfs instance. Browsers only allow that if rustfs advertises
+        # Access-Control-Allow-Origin, so enable CORS for the S3 API.
+        # `*` keeps the hub usable from every origin the SPA is served on
+        # (netbird name, LAN IP) and is safe here because the presigned GET
+        # carries no credentials. Without it the preview modal dies with a
+        # browser-level CORS error — see docs/development/local-dev.md ->
+        # "MinIO CORS" for the upstream note on the same requirement.
+        RUSTFS_CORS_ALLOWED_ORIGINS = "*";
+      };
     };
 
     networking.firewall.allowedTCPPorts =

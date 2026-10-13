@@ -6,6 +6,13 @@ pkgs.stdenv.mkDerivation {
 
   src = kohaku-hub;
 
+  # 0003 makes `repoAPI.getInfo` request the metadata-only repo-info shape
+  # (`include_siblings=false`, see 0002), so the SPA stops blocking the dataset
+  # card on a multi-MB `siblings` array it never reads. Applied here rather than
+  # to `src` because `npmDeps` is a fixed-output hash over the unpatched
+  # `src/kohaku-hub-ui`, and this patch does not touch the package manifests.
+  patches = [ ./patches/0003-ui-skip-siblings-on-repo-info.patch ];
+
   nativeBuildInputs = with pkgs; [
     nodejs
     npmHooks.npmConfigHook

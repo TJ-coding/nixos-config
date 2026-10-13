@@ -1,0 +1,52 @@
+Let the repository-info endpoint skip the HF `siblings` list.
+
+GET /api/{repo_type}s/{namespace}/{name} always materialises the full
+HuggingFace `siblings` array. For a 40k-file dataset that is a 6 MB
+response whose TTFB is ~0.93 s (41 sequential lakeFS list_objects pages
+plus the per-object bookkeeping), and the SPA does not read
+repoInfo.siblings at all — it builds its tree from /tree/. Because
+RepoViewer's onMounted awaits loadRepoInfo() before loadFileTree() and
+loadReadme(), that response blocks the dataset card (README) even though
+the README itself is a 5 KB, ~35 ms fetch.
+
+Add an `include_siblings` query parameter (default true) so the SPA can
+ask for the cheap metadata-only response. The default preserves the
+existing wire shape for `huggingface_hub` clients, which is why this is
+opt-in rather than a behaviour change.
+
+--- a/src/kohakuhub/api/repo/routers/info.py
++++ b/src/kohakuhub/api/repo/routers/info.py
+@@ -172,6 +172,7 @@
+     repo_name: str,
+     request: Request,
+     fallback: bool = True,
++    include_siblings: bool = Query(True),
+     user: User | None = Depends(get_optional_user),
+ ):
+     """Get repository information (without revision).
+@@ -250,14 +251,17 @@
+             except Exception as ex:
+                 logger.debug(f"Could not get commit info: {str(ex)}")
+ 
+-        try:
+-            siblings = await collect_hf_siblings(repo_row, repo_type, repo_id, "main")
+-        except Exception as ex:
+-            logger.exception(
+-                f"Could not fetch siblings for {lakefs_repo}: {str(ex)}", ex
+-            )
+-            logger.debug(f"Could not fetch siblings for {lakefs_repo}: {str(ex)}")
+-            # Continue without siblings if fetch fails
++        if include_siblings:
++            try:
++                siblings = await collect_hf_siblings(
++                    repo_row, repo_type, repo_id, "main"
++                )
++            except Exception as ex:
++                logger.exception(
++                    f"Could not fetch siblings for {lakefs_repo}: {str(ex)}", ex
++                )
++                logger.debug(f"Could not fetch siblings for {lakefs_repo}: {str(ex)}")
++                # Continue without siblings if fetch fails
+ 
+     except Exception as e:
+         # Log warning but continue - repo exists even if LakeFS has issues

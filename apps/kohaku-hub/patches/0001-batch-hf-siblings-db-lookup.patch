@@ -1,0 +1,76 @@
+Batch the per-repo LFS checksum lookup in collect_hf_siblings.
+
+GET /api/{repo_type}s/{namespace}/{name} resolves the HuggingFace
+`siblings` list by calling collect_hf_siblings(), which resolved the
+local LFS sha256 with one `get_file()` query per object. For a dataset
+with ~40k files (~34k of them LFS-tracked) that is ~34k point lookups
+per request; acl26-csr measured 16-17 s wall clock, scaling linearly
+with file count (WMT_Project 443 files -> 0.19 s, openalex 5.2k ->
+2.2 s). The sibling list only needs path -> sha256, so read the
+repository's slice of the File table once and index it in memory.
+
+Behaviour is unchanged: an empty stored sha256 still falls back to the
+LakeFS-reported checksum, and non-LFS siblings are unaffected.
+
+--- a/src/kohakuhub/api/repo/utils/hf.py
++++ b/src/kohakuhub/api/repo/utils/hf.py
+@@ -372,7 +372,8 @@
+     revision: str,
+ ) -> list[dict]:
+     """Collect repository files using the schema expected by `huggingface_hub`."""
+-    from kohakuhub.db_operations import get_file, should_use_lfs
++    from kohakuhub.db import File
++    from kohakuhub.db_operations import should_use_lfs
+     from kohakuhub.utils.lakefs import get_lakefs_client, lakefs_repo_name
+ 
+     lakefs_repo = lakefs_repo_name(repo_type, repo_id)
+@@ -404,21 +405,20 @@
+             break
+ 
+     file_objects = [obj for obj in all_results if obj.get("path_type") == "object"]
+-    file_records = {}
+ 
+-    for obj in file_objects:
+-        path = obj["path"]
+-        size = obj.get("size_bytes", 0)
+-        if not should_use_lfs(repo_row, path, size):
+-            continue
+-
+-        try:
+-            record = get_file(repo_row, path)
+-        except Exception:
+-            record = None
+-
+-        if record is not None:
+-            file_records[path] = record
++    # Resolve every LFS checksum in a single query instead of one
++    # ``get_file()`` per object. A ~40k-file dataset previously issued
++    # ~34k point lookups here, which dominated the endpoint (about 16 s
++    # for GET /api/datasets/{namespace}/{name}); reading the per-repo
++    # slice of the table once costs a single round-trip.
++    lfs_sha_by_path: dict[str, str] = {}
++    if file_objects:
++        lfs_sha_by_path = {
++            row.path_in_repo: row.sha256
++            for row in File.select(File.path_in_repo, File.sha256).where(
++                (File.repository == repo_row) & (File.is_deleted == False)
++            )
++        }
+ 
+     siblings = []
+     for obj in file_objects:
+@@ -430,12 +430,8 @@
+         }
+ 
+         if should_use_lfs(repo_row, path, size):
+-            file_record = file_records.get(path)
+-            checksum = (
+-                file_record.sha256
+-                if file_record is not None and file_record.sha256
+-                else obj.get("checksum", "")
+-            )
++            # An empty local checksum falls back to the LakeFS-reported one.
++            checksum = lfs_sha_by_path.get(path) or obj.get("checksum", "")
+             sibling["lfs"] = {
+                 "sha256": checksum,
+                 "size": size,

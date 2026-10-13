@@ -134,10 +134,15 @@ scripts in `apps/` reachable from it.
 
 This generates `hosts/<hostname>/hardware-configuration.nix` and then runs
 `bootstrap-auth`, which sets up the GitHub deploy key that makes the private
-`secrets` flake input fetchable, the SOPS age key, and NetBird membership —
-registering the peer with the shared setup key from `nixos-secrets` so it is not
-subject to the account's Peer Session Expiration. NetBird is enrolled last, once
-the age key exists to decrypt that setup key.
+`secrets` flake input fetchable, the SOPS age key — plus a user-readable copy at
+`~/.config/sops/age/keys.txt`, so that `sops` can decrypt *and edit* secrets from
+that host — a checkout of the secrets repository at `~/nixos-secrets`, and NetBird
+membership, registering the peer with the shared setup key from `nixos-secrets` so
+it is not subject to the account's Peer Session Expiration. NetBird is enrolled
+last, once the age key exists to decrypt that setup key. Should that first
+enrolment ever fall back to interactive SSO, the deployed configuration clears the
+peer's expiration flag at the next rebuild
+([functions/netbird-session-expiration.nix](../../functions/netbird-session-expiration.nix)).
 
 The credentials step is the one that is easy to get half-right — a deploy key
 that exists but does not match the host's key looks fine and fails later with

@@ -8,12 +8,16 @@
 #      `nixos-rebuild` cannot fetch the input, and the failure surfaces as a
 #      confusing `Permission denied (publickey)` during evaluation.
 #   2. The SOPS age key at /var/lib/sops-nix/infrastructure.age.key, which is
-#      what sops-nix uses to decrypt secrets into /run/secrets.
-#   3. NetBird membership, so the host is reachable -- registered with the
+#      what sops-nix uses to decrypt secrets into /run/secrets -- plus a
+#      user-readable copy at ~/.config/sops/age/keys.txt, because *editing* a
+#      secret needs an identity and the root-only one is not one sops can use.
+#   3. A checkout of the secrets repository at ~/nixos-secrets, which is where
+#      secrets are edited from.
+#   4. NetBird membership, so the host is reachable -- registered with the
 #      shared setup key from the secrets repository, not an interactive SSO
 #      login.
 #
-# Step 3 runs *last* on purpose: it is the step that wants a secret this script
+# Step 4 runs *last* on purpose: it is the step that wants a secret this script
 # has to decrypt for itself, and it can only do that once step 2 has installed
 # the age key. Ordering it first (as this script used to) enrolled every new
 # host through SSO, which silently opts the machine into the account's "Peer
@@ -54,6 +58,11 @@ pkgs.writeShellApplication {
     SECRETS_REPO="TJ-coding/nixos-secrets"
     SECRETS_URL="git@github.com:''${SECRETS_REPO}.git"
     AGE_KEY_FILE="/var/lib/sops-nix/infrastructure.age.key"
+    # sops looks here by default, so an edit needs no SOPS_AGE_KEY_FILE dance.
+    USER_AGE_KEY_FILE="''${XDG_CONFIG_HOME:-''${HOME}/.config}/sops/age/keys.txt"
+    # Checkout a human edits secrets from. The NetBird step also decrypts the
+    # setup key out of it, so it is deliberately left in place, not thrown away.
+    SECRETS_CHECKOUT="''${HOME}/nixos-secrets"
     SSH_KEY="''${HOME}/.ssh/id_ed25519"
     SETUP_KEY_SECRET="secrets/shared/netbird.yaml"
 
@@ -65,6 +74,9 @@ pkgs.writeShellApplication {
 
     github_ok=0
     age_ok=0
+    # 0 once it is known that the host has no git author identity, which makes
+    # commits in the secrets checkout fail.
+    git_identity_ok=1
     # `setup_key` and `status_out` are initialised because `set -u`
     # (writeShellApplication) makes an unset expansion a hard error on the paths
     # that return early, and the summary below reads `status_out`.
@@ -73,7 +85,6 @@ pkgs.writeShellApplication {
     # Filled in by require_flakes; read by the success line and the summary.
     features=""
     secrets_dir=""
-    clone_dir=""
 
     step() { printf '\n==> %s\n' "$*"; }
     warn() { printf 'warning: %s\n' "$*" >&2; }
@@ -330,15 +341,44 @@ pkgs.writeShellApplication {
       esac
     fi
 
+    # sops-nix reads the key as root at boot; a *human* needs a copy they can
+    # read, and sops only looks in the places it is allowed to look. Without this
+    # an edit fails with "permission denied:
+    # /var/lib/sops-nix/infrastructure.age.key", which is confusing, because the
+    # host plainly *can* decrypt secrets. It grants nothing new -- whoever runs
+    # this is in wheel and can already read the root copy with sudo -- it just
+    # makes `sops <file>` work.
+    if [ "$age_ok" -eq 1 ]; then
+      # mkdir, not `install -d -m`, so that an existing ~/.config keeps its mode
+      # and only the directory holding the key is tightened.
+      user_key_dir="$(dirname "$USER_AGE_KEY_FILE")"
+      mkdir -p "$user_key_dir"
+      chmod 700 "$user_key_dir"
+      if sudo install -m 600 -o "$(id -un)" -g "$(id -gn)" \
+        "$AGE_KEY_FILE" "$USER_AGE_KEY_FILE"; then
+        echo "also installed a copy for your user at $USER_AGE_KEY_FILE"
+      else
+        warn "could not install $USER_AGE_KEY_FILE; to edit a secret use:"
+        warn "  sudo SOPS_AGE_KEY_FILE=$AGE_KEY_FILE sops <file>"
+      fi
+    fi
+
     # Check the recipient against what .sops.yaml actually authorises. A key
     # that decrypts nothing is the failure mode this whole script exists for.
-    # The checkout is kept around for step 3, which decrypts the setup key out
-    # of it, and removed at the end.
+    # The checkout stays: the NetBird step decrypts the setup key out of it, and
+    # it is where secrets are edited afterwards.
     if [ "$age_ok" -eq 1 ] && [ "$github_ok" -eq 1 ]; then
       step "Checking the recipient against .sops.yaml"
-      clone_dir="$(mktemp -d)"
-      if git clone --quiet --depth 1 "$SECRETS_URL" "$clone_dir/secrets" 2>/dev/null; then
-        secrets_dir="$clone_dir/secrets"
+      if [ -d "$SECRETS_CHECKOUT/.git" ]; then
+        echo "using the existing checkout at $SECRETS_CHECKOUT"
+        secrets_dir="$SECRETS_CHECKOUT"
+      elif git clone --quiet --depth 1 "$SECRETS_URL" "$SECRETS_CHECKOUT" 2>/dev/null; then
+        secrets_dir="$SECRETS_CHECKOUT"
+      else
+        warn "could not clone ''${SECRETS_REPO} to $SECRETS_CHECKOUT"
+      fi
+
+      if [ -n "$secrets_dir" ]; then
         expected="$(grep -oE 'age1[0-9a-z]{58}' "$secrets_dir/.sops.yaml" | sort -u || true)"
         if [ -z "$expected" ]; then
           warn "no age recipients found in ''${SECRETS_REPO}/.sops.yaml"
@@ -349,11 +389,18 @@ pkgs.writeShellApplication {
           warn "decryption will fail; authorised recipients are:"
           printf '%s\n' "$expected" | sed 's/^/         /'
         fi
-      else
-        warn "could not clone ''${SECRETS_REPO} to check recipients"
-        rm -rf "$clone_dir"
-        clone_dir=""
       fi
+    fi
+
+    # The checkout exists so that a human can edit secrets on this host, and that
+    # needs a git identity. Without one `git commit` fails with "Author identity
+    # unknown", which reads like a repository problem rather than a host one.
+    if [ -d "$SECRETS_CHECKOUT/.git" ] \
+      && [ -z "$(git -C "$SECRETS_CHECKOUT" config --get user.email || true)" ]; then
+      git_identity_ok=0
+      warn "git has no author identity on this host, so committing here fails:"
+      warn "  git -C $SECRETS_CHECKOUT config user.name  '<your name>'"
+      warn "  git -C $SECRETS_CHECKOUT config user.email '<your email>'"
     fi
 
     # ------------------------------------------------------------- 3. NetBird
@@ -395,16 +442,15 @@ pkgs.writeShellApplication {
     # later, so say which one this host actually got.
     status_out="$(netbird status 2>/dev/null || true)"
     if printf '%s' "$status_out" | grep -q "Session expires"; then
-      warn "this peer is registered with a *user* login, so it carries a session"
-      warn "expiry and will need 'netbird up' by hand when that fires. Re-enrol it"
-      warn "with a setup key, or turn off Peer Session Expiration in the NetBird"
-      warn "dashboard. See docs/src/Nix_Config_Architecture.md."
+      warn "this peer is registered with a *user* login, so the account's peer"
+      warn "session expiration applies to it: it will need 'netbird up' by hand"
+      warn "when the deadline fires."
+      warn "The deployed configuration clears that flag instead"
+      warn "(functions/netbird-session-expiration.nix), so this stops once the host"
+      warn "is rebuilt with api_token present in secrets/shared/netbird.yaml."
+      warn "See docs/src/Nix_Config_Architecture.md."
     elif printf '%s' "$status_out" | grep -q "Management: Connected"; then
       echo "OK: connected with no session expiry"
-    fi
-
-    if [ -n "$clone_dir" ]; then
-      rm -rf "$clone_dir"
     fi
 
     # ----------------------------------------------------------------- summary
@@ -417,8 +463,17 @@ pkgs.writeShellApplication {
     fi
     if [ "$age_ok" -eq 1 ]; then
       echo "  [ok]   SOPS age key at $AGE_KEY_FILE"
+      echo "  [ok]   user-readable copy at $USER_AGE_KEY_FILE"
     else
       echo "  [warn] no SOPS age key: sops-nix will not decrypt anything on this host"
+    fi
+    if [ -d "$SECRETS_CHECKOUT/.git" ]; then
+      echo "  [ok]   ''${SECRETS_REPO} checked out at $SECRETS_CHECKOUT"
+      echo "         (if 'git push' there is refused, the deploy key is read-only:"
+      echo "          add a write-enabled key, or run 'gh auth login' and push over HTTPS)"
+    fi
+    if [ "$git_identity_ok" -eq 0 ]; then
+      echo "  [warn] no git author identity: set user.name and user.email before committing"
     fi
     if printf '%s' "$status_out" | grep -q "Management: Connected"; then
       echo "  [ok]   NetBird peer connected"

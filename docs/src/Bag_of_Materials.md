@@ -37,6 +37,7 @@ service-specific values for one class of machine.
 |---|---|
 | [functions/ssh.nix](../../functions/ssh.nix) | OpenSSH daemon, port 22 |
 | [functions/netbird.nix](../../functions/netbird.nix) | NetBird VPN with setup-key login (exempt from session expiry), plus Docker DNS that bypasses its DNS listener |
+| [functions/netbird-session-expiration.nix](../../functions/netbird-session-expiration.nix) | Clears the account's 24h session-expiration flag on this host's own NetBird peer, through the Management API |
 | [functions/sops.nix](../../functions/sops.nix) | SOPS age key location and `sops`/`age` tooling |
 | [functions/rustfs.nix](../../functions/rustfs.nix) | RustFS S3 storage, wired to its SOPS secrets |
 | [functions/docker_compose.nix](../../functions/docker_compose.nix) | Docker and Compose |
@@ -49,7 +50,7 @@ service-specific values for one class of machine.
 |---|---|
 | [apps/kohaku-hub](../../apps/kohaku-hub/kohaku-hub.nix) | KohakuHub plus its lakeFS / Postgres / Valkey Compose stack |
 | [apps/homepage](../../apps/homepage/homepage.nix) | Homepage dashboard |
-| [apps/bootstrap-auth.nix](../../apps/bootstrap-auth.nix) | GitHub deploy key, SOPS age key, and NetBird membership via the shared setup key |
+| [apps/bootstrap-auth.nix](../../apps/bootstrap-auth.nix) | GitHub deploy key, SOPS age key (root copy for sops-nix, user copy for editing), the `~/nixos-secrets` checkout, and NetBird membership via the shared setup key |
 | [apps/bootstrap-enroll.nix](../../apps/bootstrap-enroll.nix) | `nix run .#enroll` — hardware config, then `bootstrap-auth` |
 
 ## Playbooks

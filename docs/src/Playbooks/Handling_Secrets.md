@@ -21,7 +21,7 @@ Nix code. This playbook is mostly about those two credentials.
 | Piece | Where it lives | Readable by |
 |---|---|---|
 | Encrypted secrets | `TJ-coding/nixos-secrets`, `secrets/<flake-host>/...` | anyone with repo access (ciphertext is useless without the key) |
-| age private key | `/var/lib/sops-nix/infrastructure.age.key` on each host | root on that host |
+| age private key | `/var/lib/sops-nix/infrastructure.age.key` for sops-nix, `~/.config/sops/age/keys.txt` for editing | root, and the user who bootstrapped the host |
 | age recipient | `creation_rules` in `nixos-secrets/.sops.yaml` | public |
 | GitHub deploy key | per-host SSH key registered on `nixos-secrets` | read-only, revocable per machine |
 
@@ -40,7 +40,7 @@ nixos-secrets/
 └── secrets/
     ├── shared/                      # read by more than one host
     │   ├── university-ssh-key.yaml  # -> functions/ssh-uni.nix
-    │   └── netbird.yaml             # -> functions/netbird.nix
+    │   └── netbird.yaml             # -> functions/netbird*.nix (setup_key, api_token)
     └── artifacts/                   # nixosConfigurations.artifacts
         ├── kohaku-hub.env           # dotenv: whole file is one service env
         └── rustfs.yaml              # YAML: one key per sops.secrets entry
@@ -94,10 +94,38 @@ template imports no secrets-using module never forces the input, so the flake
 evaluates happily and the missing credential stays invisible until the first
 service that needs a secret is added.
 
-**b. The age key must be installed.** `functions/sops.nix` declares
-`sops.age.keyFile = "/var/lib/sops-nix/infrastructure.age.key"`. If that file is
-absent, sops-nix silently has nothing to decrypt, and `/run/secrets/` stays
-empty.
+**b. The age key must be installed — twice, for two different readers.**
+`functions/sops.nix` declares
+`sops.age.keyFile = "/var/lib/sops-nix/infrastructure.age.key"`, which is what
+sops-nix reads at boot; if that file is absent, sops-nix silently has nothing to
+decrypt and `/run/secrets/` stays empty.
+
+That copy is root-only (mode `600`), which is right for a service and wrong for a
+human. This is the trap: on a host that decrypts secrets perfectly well at boot,
+editing one as your own user fails, because the only identity on the machine is
+unreadable to you:
+
+```text
+Failed to get the data key required to decrypt the SOPS file.
+  age18tqkdukn4cfs0es7zknm9eacpagmfqrfaaclcdzhs46cylrqg92smff6qm: FAILED
+    - | failed to create reader for decrypting sops data key with age: identity
+      | did not match any of the recipients ... failed to open
+      | SOPS_AGE_KEY_FILE file: open
+      | /var/lib/sops-nix/infrastructure.age.key: permission denied.
+Recovery failed because no master key was able to decrypt the file.
+```
+
+The fix is a second copy at sops' own default location,
+`~/.config/sops/age/keys.txt`, which `bootstrap-auth` installs and which needs no
+`SOPS_AGE_KEY_FILE`:
+
+```sh
+sudo install -m 600 -o "$(id -un)" -g "$(id -gn)" \
+  /var/lib/sops-nix/infrastructure.age.key ~/.config/sops/age/keys.txt
+```
+
+It hands over nothing `sudo` did not already: the same user can `sudo cat` the
+root copy. See §9 for custody.
 
 ## 3. Bootstrapping a new host
 
@@ -130,8 +158,11 @@ Once the credentials are in place the main flake is fully usable and
 
 1. ensures an SSH key exists, offers to register it as a **read-only deploy key**
    on `nixos-secrets`, and verifies the result with `git ls-remote`;
-2. installs the age key (paste an existing one, or generate a new one);
-3. checks the key's recipient against `nixos-secrets/.sops.yaml`;
+2. installs the age key for sops-nix (paste an existing one, or generate a new
+   one) **and a user-readable copy** at `~/.config/sops/age/keys.txt`, so that
+   `sops` can decrypt — and therefore edit — secrets on that host (§2b);
+3. checks the key's recipient against `nixos-secrets/.sops.yaml`, and leaves a
+   checkout behind at `~/nixos-secrets` (which is also what step 4 reads);
 4. brings the machine onto NetBird, registering it with the setup key from
    `secrets/shared/netbird.yaml`, which it decrypts using the age key from step 2;
 5. prints a PASS/FAIL summary and exits non-zero if the repository is still
@@ -172,6 +203,13 @@ sudo tee /var/lib/sops-nix/infrastructure.age.key >/dev/null   # paste, then Ctr
 sudo chmod 600 /var/lib/sops-nix/infrastructure.age.key
 sudo chown root:root /var/lib/sops-nix/infrastructure.age.key
 
+# ...and a copy your own user can read, or `sops` cannot edit anything here (§2b)
+sudo install -m 600 -o "$(id -un)" -g "$(id -gn)" \
+  /var/lib/sops-nix/infrastructure.age.key ~/.config/sops/age/keys.txt
+
+# ...and the checkout secrets are edited from (NetBird reads it in step 3 too)
+git clone git@github.com:TJ-coding/nixos-secrets.git ~/nixos-secrets
+
 # 3. NetBird, with the shared setup key, so the peer never expires
 sudo SOPS_AGE_KEY_FILE=/var/lib/sops-nix/infrastructure.age.key \
   sops --decrypt --extract '["setup_key"]' \
@@ -201,6 +239,10 @@ sops ~/nixos-secrets/secrets/artifacts/kohaku-hub.env
 # YAML file: one key per sops.secrets entry
 sops ~/nixos-secrets/secrets/artifacts/rustfs.yaml
 
+# shared YAML: the NetBird setup key and the API token that clears peer session
+# expiration (functions/netbird.nix, functions/netbird-session-expiration.nix)
+sops ~/nixos-secrets/secrets/shared/netbird.yaml
+
 git -C ~/nixos-secrets commit -am "Update <service> secrets"
 git -C ~/nixos-secrets push
 
@@ -210,8 +252,30 @@ nix flake update secrets
 sudo nixos-rebuild switch --flake .#artifacts
 ```
 
-`sops` picks the age recipient from `.sops.yaml` automatically, so you never
-paste a key while editing.
+`sops` picks the age *recipient* from `.sops.yaml` automatically, so you never
+paste one while editing. It still needs an *identity* to decrypt with — the
+user-readable age key from §2b — and that is what `bootstrap-auth` sets up
+(§3).
+
+Three more assumptions this block makes:
+
+- **The checkout exists.** `bootstrap-auth` leaves one at `~/nixos-secrets`
+  (§3); otherwise the `git clone` above is the first step.
+- **You can push.** The deploy key a bootstrapped host gets is read-only by
+  design, so `git push` from that host is refused:
+  ```text
+  ERROR: The key you are authenticating with has been marked as read only.
+  ```
+  Push from the machine where you normally edit secrets, or run `gh auth login`
+  on the host and push over HTTPS.
+- **Commits work.** `git commit` needs an author identity, and a freshly
+  bootstrapped host often has none — it fails with *"Author identity unknown"*,
+  which reads like a repository problem. Set one in the checkout before the first
+  commit (`bootstrap-auth` reports this at enrolment):
+  ```sh
+  git -C ~/nixos-secrets config user.name  '<your name>'
+  git -C ~/nixos-secrets config user.email '<your email>'
+  ```
 
 ## 5. Wiring a secret into a module
 
@@ -281,6 +345,22 @@ The `systemdDependencies` entry is the load-bearing part: without it the login
 unit is free to start before sops-nix has written the file, and it reads a path
 that does not exist yet.
 
+The same pattern carries the NetBird personal access token that
+[functions/netbird-session-expiration.nix](../../functions/netbird-session-expiration.nix)
+uses to clear the account's 24h **Peer Session Expiration** on this host's own
+peer (`LoadCredential = "api-token:${…}"`, read by the script as
+`$CREDENTIALS_DIRECTORY/api-token`). Create the token once in the NetBird
+dashboard — **user menu → Personal access tokens → Create** — under a user who
+may see and update these peers (an admin, or whoever enrolled them), then add it
+to `secrets/shared/netbird.yaml` as `api_token` and pin the new revision, exactly
+as in [§4](#4-adding-or-changing-a-secret).
+
+That key is a prerequisite, not an optional nicety. `sops-install-secrets` aborts
+the whole activation when a declared `sops.secrets.*.key` is absent from the file
+(`the key 'api_token' cannot be found`), so a rebuild that lands before the key
+exists stops with a decryption error rather than silently leaving the peer on the
+daily-expiry path.
+
 ## 6. Verifying that it actually works
 
 ```sh
@@ -341,6 +421,9 @@ gh repo deploy-key delete <id> --repo TJ-coding/nixos-secrets
 | `Failed to fetch git repository ... nixos-secrets` | no SSH key registered, or no network | `ssh -T git@github.com` |
 | `/run/secrets` missing or empty | no age key, or the host defines no `sops.secrets` | install the age key; check `journalctl -u sops-nix` |
 | `sops` says *no matching creation rules* | recipient missing from `.sops.yaml` | add it, then `sops updatekeys` |
+| `sops` fails with `permission denied: /var/lib/sops-nix/infrastructure.age.key` or `no master key was able to decrypt the file`, but the host decrypts fine at boot | you are editing as your user and only the root-only copy of the age key exists | install the user copy (§2b); `bootstrap-auth` does it |
+| `git push` to `nixos-secrets` refused: *key ... marked as read only* | the host's deploy key is deliberately read-only | push from another machine, or `gh auth login` here |
+| `git commit` says *Author identity unknown* | no `user.name`/`user.email` for git on that host | `git -C ~/nixos-secrets config user.name …` and `… config user.email …`; `bootstrap-auth` warns about it |
 | Build succeeds but the service starts with empty values | the module reads the secret at eval time, or `restartUnits` is not set | use `config.sops.secrets.…​.path`; add `restartUnits` |
 | Secrets input never fetched, so nothing complains | no imported module uses `secrets` | that host simply does not need it; see §2a |
 
@@ -355,12 +438,19 @@ gh repo deploy-key delete <id> --repo TJ-coding/nixos-secrets
   account.
 - Installing the key must be done as root with mode `600`:
   `sudo install -m 600 -o root -g root <key> /var/lib/sops-nix/infrastructure.age.key`.
+- The user-readable copy at `~/.config/sops/age/keys.txt` (§2b) is that same
+  shared key in a second place. It is what makes `sops` work on the host; keep it
+  mode `600`, and never copy it into either repository.
 - Rotate a secret by editing it with `sops`, not by rewriting the file by hand;
   writing plaintext and re-encrypting later leaks it into shell history and
   backups.
 
 ## 10. Known rough edges
 
+- A bootstrapped host can *read* `nixos-secrets` but not push to it: the deploy
+  key `bootstrap-auth` registers is read-only by design. Editing a secret from a
+  host is therefore a two-machine dance unless you add a write-enabled deploy key
+  or authenticate `gh` there.
 - `secrets/<flake-host>/` is named after the flake attribute, while both
   machines set `networking.hostName = "nixos"`. Auto-deriving secret paths from
   the hostname is therefore not possible today; templates set
