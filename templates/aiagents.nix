@@ -18,7 +18,10 @@
   # boundary here; nothing in this UI can answer "yes" to a prompt).
   programs.ssh = {
     knownHosts.hpc = {
-      hostNames = [ "hpc.netbird.cloud" "100.82.96.15" ];
+      # hpc's overlay address changed when the peer was re-enrolled with the
+      # setup key (100.82.96.15 -> 100.82.117.6); keep both hostname and IP so
+      # strict matching pins the key for either way of addressing it.
+      hostNames = [ "hpc.netbird.cloud" "100.82.117.6" ];
       publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOD5q9AwyUCZb5QEqTRE9dEKHS+2GwbnmoleWAVwozut";
     };
     extraConfig = ''
@@ -53,8 +56,7 @@
       "localhost"
       "127.0.0.1"
       "192.168.10.130"
-      "100.82.164.233"
-      "nixos-164-233.netbird.cloud"
+      "100.82.141.152"
       "aiagents.netbird.cloud"
     ];
   };

@@ -16,4 +16,6 @@ services:
     environment:
       # Required since Homepage v1.0 when accessed from a non-localhost URL.
       # Comma-separated (no spaces) list of allowed Host headers.
-      HOMEPAGE_ALLOWED_HOSTS: "nixos.netbird.cloud:8080,100.82.43.201:8080,localhost:8080,127.0.0.1:8080"
+      # 100.82.175.165 is the peer's overlay address after the setup-key
+      # re-enrolment (was 100.82.43.201).
+      HOMEPAGE_ALLOWED_HOSTS: "nixos.netbird.cloud:8080,100.82.175.165:8080,localhost:8080,127.0.0.1:8080"
