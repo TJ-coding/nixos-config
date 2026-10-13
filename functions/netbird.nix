@@ -5,6 +5,15 @@
 
 let
   nb = lib.getExe config.services.netbird.clients.default.wrapper;
+
+  # The PAT does not exist yet (nixos-secrets/secrets/shared/netbird.yaml
+  # carries only setup_key), but declaring a sops secret whose key is missing
+  # from the file makes sops-install-secrets abort the whole activation --
+  # which would brick every host on rebuild. The top-level key names in a
+  # sops-encrypted YAML stay plaintext, so the presence check can run at
+  # evaluation time. Once someone adds api_token to that file, the module
+  # below activates with no further changes.
+  hasApiToken = lib.hasInfix "api_token:" (builtins.readFile "${secrets}/secrets/shared/netbird.yaml");
 in
 {
   services.netbird.enable = true;
@@ -20,13 +29,20 @@ in
   # and the machine drops off the mesh until somebody runs `netbird up` on it
   # by hand -- which is what artifacts, highperformancecomputing and aiagents
   # were doing roughly every 24 hours. Peers registered with a setup key are
-  # exempt from session expiration.
+  # exempt from session expiration, and netbird-login below is the oneshot
+  # that enrols a not-yet-enrolled host with the key, so bringing a new
+  # machine onto the mesh needs no human at the console.
   #
-  # Note: management refuses a setup-key login for a peer that was originally
-  # enrolled via SSO ("setup keys can only enrol new peers"). Such a peer has
-  # to be deleted in the dashboard once; the login automation below then
-  # enrols it fresh with the setup key and it stays connected for good.
-  #
+  # Two things a setup key cannot do, handled elsewhere:
+  # - management refuses a setup-key login for a peer that was originally
+  #   enrolled via SSO ("setup keys can only enrol new peers"). Such a peer
+  #   has to be deleted in the dashboard once; the automation below then
+  #   enrols it fresh with the setup key and it stays connected for good.
+  #   functions/netbird-session-expiration.nix (imported below) is the
+  #   alternative: with an api_token in the secrets file it flips the peer's
+  #   login-expiration flag through the Management REST API instead.
+  imports = [ ./netbird-session-expiration.nix ];
+
   # netbird-login is a oneshot that runs `netbird up`, which reads the key
   # from NB_SETUP_KEY_FILE. On a host that has not enrolled yet that is an
   # unattended login, so bringing a new machine onto the mesh needs no human
