@@ -93,7 +93,12 @@
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 
-  # Enable flakes so the host can rebuild itself from this flake.
+  # Enable flakes and the unified `nix` CLI so the host can rebuild itself from
+  # this flake. modules/common.nix declares the same pair for every server host;
+  # keeping it here too costs nothing (matching values collapse to one entry in
+  # nix.conf) and keeps this file self-explanatory. The enabled feature set is
+  # pinned in the Nix manual:
+  # https://nixos.org/manual/nixos/stable/#opt-nix.settings.experimental-features
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   # This value determines the NixOS release from which the default
