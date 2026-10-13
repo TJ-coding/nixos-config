@@ -1,7 +1,11 @@
 # Installs and launches the NetBird VPN service at boot time, and keeps the
 # machine registered without a human at the keyboard.
 # Provides: Netbird
-{ config, pkgs, secrets, ... }:
+{ config, lib, pkgs, secrets, ... }:
+
+let
+  nb = lib.getExe config.services.netbird.clients.default.wrapper;
+in
 {
   services.netbird.enable = true;
   environment.systemPackages = with pkgs; [
@@ -13,15 +17,20 @@
   # Peers enrolled through SSO login inherit the account's "Peer Session
   # Expiration" (24h by default). When it fires, management answers
   # `PermissionDenied desc = peer login has expired, please log in once more`
-  # and the machine drops off the mesh until somebody runs `netbird up` on it by
-  # hand -- which is what artifacts and highperformancecomputing were doing
-  # roughly every 24 hours. Peers registered with a setup key are exempt from
-  # session expiration.
+  # and the machine drops off the mesh until somebody runs `netbird up` on it
+  # by hand -- which is what artifacts, highperformancecomputing and aiagents
+  # were doing roughly every 24 hours. Peers registered with a setup key are
+  # exempt from session expiration.
   #
-  # clients.default.login is a oneshot that waits for the daemon to report
-  # `NeedsLogin`, then runs `netbird up`, which reads the key from
-  # NB_SETUP_KEY_FILE. On a host that has not enrolled yet that is an unattended
-  # login, so bringing a new machine onto the mesh needs no human at the console.
+  # Note: management refuses a setup-key login for a peer that was originally
+  # enrolled via SSO ("setup keys can only enrol new peers"). Such a peer has
+  # to be deleted in the dashboard once; the login automation below then
+  # enrols it fresh with the setup key and it stays connected for good.
+  #
+  # netbird-login is a oneshot that runs `netbird up`, which reads the key
+  # from NB_SETUP_KEY_FILE. On a host that has not enrolled yet that is an
+  # unattended login, so bringing a new machine onto the mesh needs no human
+  # at the console.
   sops.secrets."netbird-setup-key" = {
     sopsFile = "${secrets}/secrets/shared/netbird.yaml";
     key = "setup_key";
@@ -30,8 +39,65 @@
   services.netbird.clients.default.login = {
     enable = true;
     setupKeyFile = config.sops.secrets."netbird-setup-key".path;
-    # The key does not exist until sops-nix has decrypted it.
-    systemdDependencies = [ "sops-install-secrets.service" ];
+  };
+  # No extra systemdDependencies. The nixpkgs module doc suggests
+  # `sops-install-secrets.service`, but that unit only exists when
+  # `sops.useSystemdActivation = true`. With the default activation-script
+  # mode the unit does not exist, and a `Requires=` on a missing unit makes
+  # netbird-login *silently never start* -- which is exactly how the
+  # auto-login was broken here for weeks (it had zero journal entries).
+  # With activation-script mode the secrets are installed during system
+  # activation, which always precedes boot-time services, so no dependency
+  # is needed.
+
+  # Replace the stock login script. The stock one only acts when the daemon
+  # reports `NeedsLogin`, but a session that expires *while the daemon is
+  # running* reports `SessionExpired` instead -- so the stock script spun
+  # uselessly and the host stayed off the mesh. Act on both states, and on
+  # anything else but a working connection just wait: `Connecting` and
+  # `Disconnected` are transient states the daemon recovers from itself.
+  systemd.services.netbird-login = {
+    serviceConfig.RemainAfterExit = lib.mkForce false;
+    script = lib.mkForce ''
+      set -u
+
+      attempt=0
+      while [ "$attempt" -lt 30 ]; do
+        status="$(${nb} status 2>&1 || true)"
+        case "$status" in
+          *": Connected"*)
+            exit 0
+            ;;
+          *"NeedsLogin"* | *"SessionExpired"*)
+            break
+            ;;
+        esac
+        attempt=$((attempt + 1))
+        sleep 2
+      done
+      [ "$attempt" -lt 30 ] || exit 0
+
+      # NB_SETUP_KEY_FILE points at the mounted setup key and is picked up by
+      # the CLI automatically, so `netbird up` logs in without a browser.
+      # timeout caps the hang: for a peer still registered with a user login
+      # the management server refuses a setup-key login, which is reported as
+      # a failed unit; the timer below retries until the stale peer has been
+      # deleted in the dashboard and this host can enrol as a new one.
+      ${pkgs.coreutils}/bin/timeout 300 ${nb} up
+    '';
+  };
+
+  # Session expiry fires while the machine is *running* (no reboot around
+  # it), so a boot-time oneshot is not enough: re-check periodically and
+  # re-login if the peer has fallen off. RemainAfterExit was forced off
+  # above so the timer can re-trigger the unit.
+  systemd.timers.netbird-login = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2min";
+      OnUnitActiveSec = "10min";
+      AccuracySec = "1min";
+    };
   };
 
   # Configure Docker to use public DNS instead of NetBird's DNS listener.

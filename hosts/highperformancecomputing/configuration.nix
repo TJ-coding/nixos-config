@@ -21,7 +21,11 @@
   boot.loader.grub.device = "/dev/sda";
   boot.loader.grub.useOSProber = true;
 
-  networking.hostName = "nixos"; # Define your hostname.
+  # The NetBird FQDN (hpc.netbird.cloud) is derived from the OS hostname at
+  # enrolment time, so it must match the peer name in the NetBird dashboard:
+  # a rebuild+re-enrol under any other name would move the machine to a
+  # different mesh hostname and break every ssh alias that targets it.
+  networking.hostName = "hpc";
 
   # Proxmox guest integration: clean shutdown + IP reporting from the hypervisor.
   services.qemuGuest.enable = true;

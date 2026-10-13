@@ -16,7 +16,9 @@
   boot.loader.grub.device = "/dev/sda";
   boot.loader.grub.useOSProber = true;
 
-  networking.hostName = "nixos"; # Define your hostname.
+  # Match the NetBird FQDN (aiagents.netbird.cloud); see the note in
+  # hosts/highperformancecomputing/configuration.nix.
+  networking.hostName = "aiagents";
 
   # Proxmox guest integration: clean shutdown + IP reporting from the hypervisor.
   services.qemuGuest.enable = true;

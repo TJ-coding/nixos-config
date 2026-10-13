@@ -23,10 +23,10 @@
   services.slurm = {
     server.enable = true;
     client.enable = true;
-    controlMachine = "nixos";
+    controlMachine = "hpc";
     controlAddr = "127.0.0.1";
-    nodeName = [ "nixos CPUs=16 RealMemory=14000 State=UNKNOWN" ];
-    partitionName = [ "main Nodes=nixos Default=YES MaxTime=INFINITE State=UP" ];
+    nodeName = [ "hpc CPUs=16 RealMemory=14000 State=UNKNOWN" ];
+    partitionName = [ "main Nodes=hpc Default=YES MaxTime=INFINITE State=UP" ];
     extraConfig = ''
       SlurmctldParameters=enable_configless
       ReturnToService=2
